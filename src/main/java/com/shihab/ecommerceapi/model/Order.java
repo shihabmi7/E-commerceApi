@@ -20,6 +20,11 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // NEW: link to Address
+    @ManyToOne
+    @JoinColumn(name = "address_id", nullable = false)
+    private Address address;
+
     private Double total;
 
     @Enumerated(EnumType.STRING)

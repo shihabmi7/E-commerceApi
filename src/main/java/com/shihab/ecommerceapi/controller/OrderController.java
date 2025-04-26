@@ -1,5 +1,6 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
 import com.shihab.ecommerceapi.model.Order;
 import com.shihab.ecommerceapi.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,4 +41,12 @@ public class OrderController {
     public void delete(@PathVariable Integer id) {
         orderService.deleteById(id);
     }
+
+    // existing CRUD endpoints omitted…
+
+    @PostMapping("/place")
+    public Order placeOrder(@RequestBody PlaceOrderRequest req) {
+        return orderService.placeOrder(req);
+    }
+
 }

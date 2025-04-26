@@ -136,3 +136,40 @@ CREATE TABLE discounts (
     end_date DATE,
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
+
+
+-- 1) Categories
+INSERT INTO categories (name, description) VALUES
+  ('Electronics', 'Gadgets, devices and accessories'),
+  ('Books',       'Printed and e-books across genres'),
+  ('Clothing',    'Apparel for men and women');
+
+-- 2) Products
+INSERT INTO products (name, description, price, stock, category_id) VALUES
+  ('Wireless Mouse',    'Ergonomic 2.4GHz wireless mouse',  19.99, 150, 1),
+  ('USB-C Charger',     'PD fast charger 30W',              25.00, 300, 1),
+  ('Spring Boot in Action', 'Comprehensive guide to Spring Boot', 39.50,  75, 2),
+  ('Men''s T-Shirt',    '100% cotton, crew neck',           15.00, 200, 3);
+
+-- 3) Product Images
+INSERT INTO product_images (product_id, image_url) VALUES
+  (1, 'https://example.com/images/mouse1.jpg'),
+  (1, 'https://example.com/images/mouse2.jpg'),
+  (2, 'https://example.com/images/charger.jpg'),
+  (3, 'https://example.com/images/springboot.jpg'),
+  (4, 'https://example.com/images/tshirt.jpg');
+
+-- 4) (Optional) Discounts
+INSERT INTO discounts (product_id, discount_percentage, start_date, end_date) VALUES
+  (1,    10.00, '2025-04-01', '2025-04-30'),
+  (3, 5.00,  '2025-04-15', '2025-05-15');
+
+-- 5) Verify with sample queries
+SELECT p.id, p.name, p.price, c.name AS category
+  FROM products p
+  JOIN categories c ON p.category_id = c.id;
+
+SELECT p.name, pi.image_url
+  FROM products p
+  JOIN product_images pi ON p.id = pi.product_id
+  WHERE p.id = 1;
