@@ -113,10 +113,20 @@ _(And other CRUD endpoints under `/api/` for users, products, categories, etc.)_
 - **RabbitMQ** integration for async order/event messaging
 - **Firebase FCM** for real‑time push notifications (order status updates)
 - Unit & integration tests (JUnit + Mockito)
-- Dockerfile & Docker Compose
+- Docker Compose [in progress]
 - CI/CD pipeline (GitHub Actions → AWS)
 
 ---
+
+## Docker Command
+
+- mvn clear package [CREATE JAR]
+- docker build -t image_name .  [From project root folder]
+- docker run -p 5555:8080 ecommerce-api
+- http://localhost:5555/swagger-ui/index.html
+- docker images
+- docker ps
+
 
 ## 👍 Contributing
 
