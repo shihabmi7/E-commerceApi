@@ -9,10 +9,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class OrderMessageSender {
 
-    @Value("${app.rabbitmq.exchange}")
-    private String exchange;
-    @Value("${app.rabbitmq.routingkey}")
-    private String routingKey;
+//    @Value("${app.rabbitmq.exchange}")
+//    private String exchange;
+//    @Value("${app.rabbitmq.routingkey}")
+//    private String routingKey;
 
     @Value("${app.rabbitmq.exchange_json}")
     private String exchangeJson;
@@ -28,7 +28,7 @@ public class OrderMessageSender {
     }
 
     public void sendOrderMessage(OrderMessage orderMessage) {
-        logger.info("--JSON Message Sent--", orderMessage);
+        logger.debug("--JSON Message Sent--", orderMessage.toString());
         rabbitTemplate.convertAndSend(exchangeJson, routingKeyjson, orderMessage );
     }
 
