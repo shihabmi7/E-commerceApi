@@ -32,8 +32,9 @@ public class OrderMessageSender {
         rabbitTemplate.convertAndSend(exchangeJson, routingKeyjson, orderMessage );
     }
 
-    public void sendGeneralMessage(String message) {
-        logger.info("--Message Sent--", message);
-        rabbitTemplate.convertAndSend(exchange, routingKey, message );
-    }
 }
+
+//public void sendGeneralMessage(String message) {
+//        logger.info("--Message Sent--", message);
+//        rabbitTemplate.convertAndSend(exchange, routingKey, message );
+//    }

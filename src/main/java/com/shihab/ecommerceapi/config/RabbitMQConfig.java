@@ -12,15 +12,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    @Value("${app.rabbitmq.queue}")
-    private String queue;
-
-    @Value("${app.rabbitmq.exchange}")
-    private String exchange;
-
-    @Value("${app.rabbitmq.routingkey}")
-    private String routingKey;
-
     @Value("${app.rabbitmq.queue_json}")
     private String queueJson;
 
@@ -29,23 +20,6 @@ public class RabbitMQConfig {
 
     @Value("${app.rabbitmq.routingkey_json}")
     private String routingKeyJson;
-
-    @Bean
-    public Queue normalQueue() {
-        return new Queue(queue, true);
-    }
-
-    @Bean
-    public TopicExchange normalExchange() {
-        return new TopicExchange(exchange);
-    }
-
-    @Bean
-    public Binding binding() {
-        return BindingBuilder.
-                bind(normalQueue()).to(normalExchange()).
-                with(routingKey);
-    }
 
     @Bean
     public Queue jsonQueue() {
@@ -76,3 +50,29 @@ public class RabbitMQConfig {
                 to(jsonExchange()).with(routingKeyJson);
     }
 }
+
+
+// @Value("${app.rabbitmq.queue}")
+//    private String queue;
+//
+//    @Value("${app.rabbitmq.exchange}")
+//    private String exchange;
+//
+//    @Value("${app.rabbitmq.routingkey}")
+//    private String routingKey;
+//  @Bean
+//    public Queue normalQueue() {
+//        return new Queue(queue, true);
+//    }
+//
+//    @Bean
+//    public TopicExchange normalExchange() {
+//        return new TopicExchange(exchange);
+//    }
+//
+//    @Bean
+//    public Binding binding() {
+//        return BindingBuilder.
+//                bind(normalQueue()).to(normalExchange()).
+//                with(routingKey);
+//    }

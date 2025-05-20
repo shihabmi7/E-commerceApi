@@ -13,11 +13,6 @@ public class MessageController {
         this.orderMessageSender = sender;
     }
 
-    @GetMapping("/publish")
-    public ResponseEntity<String> sendMessageToRabbitMq(@RequestParam("message") String message) {
-        orderMessageSender.sendGeneralMessage(message);
-        return ResponseEntity.ok("Message has been sent!" + message);
-    }
 
     @PostMapping("/publish")
     public ResponseEntity<String> sendMessageToQueue(@RequestBody OrderMessage orderMessage) {
@@ -25,3 +20,9 @@ public class MessageController {
         return ResponseEntity.ok("Message has been sent!" + orderMessage.toString());
     }
 }
+
+//@GetMapping("/publish")
+//    public ResponseEntity<String> sendMessageToRabbitMq(@RequestParam("message") String message) {
+//        orderMessageSender.sendGeneralMessage(message);
+//        return ResponseEntity.ok("Message has been sent!" + message);
+//    }
