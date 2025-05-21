@@ -1,12 +1,12 @@
 services:
   mysql:
-    image: mysql
+    image: mysql:8.3.0
     container_name: mysql-latest
     environment:
       MYSQL_DATABASE: ecommerce
       MYSQL_ROOT_PASSWORD: root
     ports:
-      - "3306:3306"
+      - "3308:3306"
 
   rabbitmq:
     image: rabbitmq
@@ -24,7 +24,7 @@ services:
       - rabbitmq
       - mysql
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/ecommerce
+      - SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3308/ecommerce?createDatabaseIfNotExist=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
       - SPRING_RABBITMQ_HOST=rabbitmq

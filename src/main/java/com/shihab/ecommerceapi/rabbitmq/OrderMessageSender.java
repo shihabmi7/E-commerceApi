@@ -9,11 +9,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class OrderMessageSender {
 
-//    @Value("${app.rabbitmq.exchange}")
-//    private String exchange;
-//    @Value("${app.rabbitmq.routingkey}")
-//    private String routingKey;
-
     @Value("${app.rabbitmq.exchange_json}")
     private String exchangeJson;
     @Value("${app.rabbitmq.routingkey_json}")
@@ -21,7 +16,7 @@ public class OrderMessageSender {
 
     private final RabbitTemplate rabbitTemplate;
 
-    Logger logger = LoggerFactory.getLogger(OrderMessageSender.class);
+    final Logger logger = LoggerFactory.getLogger(OrderMessageSender.class);
 
     public OrderMessageSender(RabbitTemplate rabbitTemplate) {
         this.rabbitTemplate = rabbitTemplate;
@@ -33,6 +28,12 @@ public class OrderMessageSender {
     }
 
 }
+
+//    @Value("${app.rabbitmq.exchange}")
+//    private String exchange;
+//    @Value("${app.rabbitmq.routingkey}")
+//    private String routingKey;
+
 
 //public void sendGeneralMessage(String message) {
 //        logger.info("--Message Sent--", message);
