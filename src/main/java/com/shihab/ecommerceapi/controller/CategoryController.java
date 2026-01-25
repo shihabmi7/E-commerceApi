@@ -1,5 +1,6 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Category;
 import com.shihab.ecommerceapi.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,8 +22,9 @@ public class CategoryController {
     }
 
     @GetMapping("/{id}")
-    public Optional<Category> getById(@PathVariable Integer id) {
-        return categoryService.findById(id);
+    public Category getById(@PathVariable Integer id) {
+        return categoryService.findById(id).orElseThrow(() -> new EntityNotFoundException("" +
+                "No category found with ID: "+id ));
     }
 
     @PostMapping

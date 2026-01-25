@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap                         # ConfigMap stores plain text key-value config data
+metadata:
+  name: ecommerce-config                # The name used to reference this ConfigMap
+data:
+  MYSQL_HOST: mysql-service            # Internal service name for MySQL
+  MYSQL_PORT: "3306"                   # Default MySQL port
+  MYSQL_DB: ecommerce_db              # Your MySQL database name
+  RABBITMQ_HOST: rabbitmq-service      # Internal service name for RabbitMQ
+  RABBITMQ_PORT: "5672"                # Default RabbitMQ port
+  RABBITMQ_QUEUE: ecommerce_queue      # Queue name used in your app

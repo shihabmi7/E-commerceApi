@@ -1,0 +1,13 @@
+apiVersion: v1                   # Core API group version for Services
+kind: Service                    # This defines a Kubernetes Service resource
+metadata:
+  name: ecommerce-service        # The name of the Service (used for DNS and reference)
+spec:
+  type: NodePort                 # Exposes the Service on a port on each Node (your machine)
+  selector:
+    app: ecommerce               # Targets Pods with label app: ecommerce
+  ports:
+    - protocol: TCP              # TCP protocol (used for HTTP communication)
+      port: 8080                 # The port the Service exposes inside the cluster
+      targetPort: 8080           # The container port in the Pod (Spring Boot listens here)
+      nodePort: 30036            # External port on your machine (http://localhost:30036)

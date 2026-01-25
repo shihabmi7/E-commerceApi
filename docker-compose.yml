@@ -1,31 +1,34 @@
 services:
   mysql:
-    image: mysql:8.3.0
-    container_name: mysql-latest
+    image: mysql:8.3.0                # Using official MySQL 8.3.0 image
+    container_name: mysql-latest      # Naming the container for easier reference
     environment:
-      MYSQL_DATABASE: ecommerce
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecommerce       # Creates a database named 'ecommerce' automatically
+      MYSQL_ROOT_PASSWORD: root       # Sets the root password for MySQL
     ports:
-      - "3308:3306"
+      - "3308:3306"                   # Maps host port 3308 to container's default MySQL port 3306
 
   rabbitmq:
-    image: rabbitmq
-    container_name: rabbitmq
+    image: rabbitmq                   # Using official RabbitMQ image
+    container_name: rabbitmq          # Naming the container
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672"                   # Maps default RabbitMQ communication port
+      - "15672:15672"                 # Maps RabbitMQ management UI port
 
   springboot-app:
-    build: .
-    container_name: ecommerce-api-latest
+    build: .                          # Builds image using the Dockerfile in the current directory
+    container_name: ecommerce-api-latest # Naming the container for Spring Boot app
     ports:
-      - "8080:8080"
+      - "8080:8080"                   # Maps Spring Boot default port to the host
     depends_on:
-      - rabbitmq
-      - mysql
+      - rabbitmq                      # Ensures RabbitMQ container starts before Spring Boot app
+      - mysql                         # Ensures MySQL container starts before Spring Boot app
     environment:
+      # MySQL database connection settings
       - SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3308/ecommerce?createDatabaseIfNotExist=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
-      - SPRING_RABBITMQ_HOST=rabbitmq
+
+      # RabbitMQ connection settings
+      - SPRING_RABBITMQ_HOST=rabbitmq # Refers to the container name, allowing internal Docker network resolution
       - SPRING_RABBITMQ_PORT=5672
