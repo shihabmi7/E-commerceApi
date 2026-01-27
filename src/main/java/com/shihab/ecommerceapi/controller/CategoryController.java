@@ -7,12 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/categories")
-public class CategoryController {
-    
+public class CategoryController extends BaseController {
+
     @Autowired
     private CategoryService categoryService;
 
@@ -23,8 +22,9 @@ public class CategoryController {
 
     @GetMapping("/{id}")
     public Category getById(@PathVariable Integer id) {
+        log.info("Category getById called!");
         return categoryService.findById(id).orElseThrow(() -> new EntityNotFoundException("" +
-                "No category found with ID: "+id ));
+                "No category found with ID: " + id));
     }
 
     @PostMapping
