@@ -6,6 +6,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+//switch off intentionally -> service keyword
 @Service
 public class OrderMessageSender {
 
@@ -23,7 +24,7 @@ public class OrderMessageSender {
     }
 
     public void sendOrderMessage(OrderMessage orderMessage) {
-        logger.debug("--JSON Message Sent--", orderMessage.toString());
+        //logger.debug("--JSON Message Sent--", orderMessage.toString());
         rabbitTemplate.convertAndSend(exchangeJson, routingKeyjson, orderMessage );
     }
 

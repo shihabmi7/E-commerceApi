@@ -8,7 +8,7 @@ public class OrderMessageListener {
 
     @RabbitListener(queues = "${app.rabbitmq.queue_json}")
     public void orderMessageReceive(OrderMessage orderMessage) {
-        System.out.println("Received message: " + orderMessage.toString());
+       // System.out.println("Received message: " + orderMessage.toString());
     }
 }
 
