@@ -10,7 +10,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/addresses")
-public class AddressController {
+public class AddressController extends BaseController {
 
     @Autowired
     private AddressService addressService;
