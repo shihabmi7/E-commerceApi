@@ -40,6 +40,49 @@ class CartControllerTest {
     }
 
     @Test
+    void getCart_reportsNoPriceChange_whenLiveProductPriceMatchesLockedPrice() throws Exception {
+        Product product = new Product(10, "Laptop", "desc", 999.0, 5, null);
+        Cart cart = new Cart(1, null, product, 2, 999.0);
+        when(cartService.findByUserId(1)).thenReturn(List.of(cart));
+
+        mockMvc.perform(get("/api/cart").param("userId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].price").value(999.0))
+                .andExpect(jsonPath("$[0].lockedPrice").value(999.0))
+                .andExpect(jsonPath("$[0].priceChanged").value(false))
+                .andExpect(jsonPath("$[0].priceDelta").value(0.0))
+                .andExpect(jsonPath("$[0].quantity").value(2));
+    }
+
+    @Test
+    void getCart_flagsPriceIncrease_whenLiveProductPriceRoseSinceAddedToCart() throws Exception {
+        Product product = new Product(10, "Laptop", "desc", 1200.0, 5, null); // price rose from 1000 -> 1200
+        Cart cart = new Cart(1, null, product, 1, 1000.0);
+        when(cartService.findByUserId(1)).thenReturn(List.of(cart));
+
+        mockMvc.perform(get("/api/cart").param("userId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].price").value(1200.0))
+                .andExpect(jsonPath("$[0].lockedPrice").value(1000.0))
+                .andExpect(jsonPath("$[0].priceChanged").value(true))
+                .andExpect(jsonPath("$[0].priceDelta").value(200.0));
+    }
+
+    @Test
+    void getCart_flagsPriceDecrease_whenLiveProductPriceDroppedSinceAddedToCart() throws Exception {
+        Product product = new Product(10, "Laptop", "desc", 800.0, 5, null); // price dropped from 1000 -> 800
+        Cart cart = new Cart(1, null, product, 1, 1000.0);
+        when(cartService.findByUserId(1)).thenReturn(List.of(cart));
+
+        mockMvc.perform(get("/api/cart").param("userId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].price").value(800.0))
+                .andExpect(jsonPath("$[0].lockedPrice").value(1000.0))
+                .andExpect(jsonPath("$[0].priceChanged").value(true))
+                .andExpect(jsonPath("$[0].priceDelta").value(-200.0));
+    }
+
+    @Test
     void getById_returnsCart() throws Exception {
         Cart cart = new Cart(1, null, new Product(1, "Laptop", "desc", 999.0, 5, null), 2, 999.0);
         when(cartService.findById(1)).thenReturn(Optional.of(cart));

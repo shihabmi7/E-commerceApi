@@ -44,35 +44,47 @@ public class CartController {
         cartService.deleteById(id);
     }
 
+    private static final double PRICE_CHANGE_EPSILON = 0.0001;
+
     /**
-     * Returns a list of products in the user's cart, each with its aggregated quantity.
+     * Returns a list of products in the user's cart, each with its aggregated quantity
+     * and a flag/delta showing whether the product's live price has moved since it
+     * was added (the customer is still charged the locked-in price at checkout).
      */
     @GetMapping
     public List<ProductInCartDto> getCart(@RequestParam Integer userId) {
         // 1) fetch all Cart entries for the user
         List<Cart> carts = cartService.findByUserId(userId);
 
-        // 2) group by product and sum quantity
-        Map<Product, Integer> aggregated = carts.stream()
-                .collect(Collectors.toMap(
-                        Cart::getProduct,
-                        Cart::getQuantity,
-                        Integer::sum,
-                        LinkedHashMap::new
-                ));
+        // 2) group by product, preserving each line's locked-in price
+        Map<Product, List<Cart>> byProduct = carts.stream()
+                .collect(Collectors.groupingBy(Cart::getProduct, LinkedHashMap::new, Collectors.toList()));
 
         // 3) map to DTOs
-        return aggregated.entrySet().stream()
+        return byProduct.entrySet().stream()
                 .map(entry -> {
                     Product p = entry.getKey();
+                    List<Cart> lines = entry.getValue();
+
+                    int totalQuantity = lines.stream().mapToInt(Cart::getQuantity).sum();
+                    // locked-in price as of when the line was first added; falls back to the
+                    // live price for legacy/raw-created rows that were never snapshotted
+                    Double lockedPrice = lines.get(0).getPrice() != null ? lines.get(0).getPrice() : p.getPrice();
+                    Double currentPrice = p.getPrice();
+                    boolean priceChanged = Math.abs(currentPrice - lockedPrice) > PRICE_CHANGE_EPSILON;
+                    double priceDelta = currentPrice - lockedPrice;
+
                     return new ProductInCartDto(
                             p.getId(),
                             p.getName(),
                             p.getDescription(),
-                            p.getPrice(),
+                            currentPrice,
                             p.getStock(),
                             p.getCategory(),
-                            entry.getValue()           // total quantity
+                            totalQuantity,
+                            lockedPrice,
+                            priceChanged,
+                            priceDelta
                     );
                 })
                 .collect(Collectors.toList());
