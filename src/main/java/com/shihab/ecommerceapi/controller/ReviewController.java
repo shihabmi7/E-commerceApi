@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Review;
 import com.shihab.ecommerceapi.service.ReviewService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,9 +10,12 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/reviews")
 public class ReviewController {
-    
-    @Autowired
-    private ReviewService reviewService;
+
+    private final ReviewService reviewService;
+
+    public ReviewController(ReviewService reviewService) {
+        this.reviewService = reviewService;
+    }
 
     @GetMapping
     public List<Review> getAll() {

@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Shipping;
 import com.shihab.ecommerceapi.service.ShippingService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,9 +10,12 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/shippings")
 public class ShippingController {
-    
-    @Autowired
-    private ShippingService shippingService;
+
+    private final ShippingService shippingService;
+
+    public ShippingController(ShippingService shippingService) {
+        this.shippingService = shippingService;
+    }
 
     @GetMapping
     public List<Shipping> getAll() {

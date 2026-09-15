@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Discount;
 import com.shihab.ecommerceapi.service.DiscountService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,9 +10,12 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/discounts")
 public class DiscountController {
-    
-    @Autowired
-    private DiscountService discountService;
+
+    private final DiscountService discountService;
+
+    public DiscountController(DiscountService discountService) {
+        this.discountService = discountService;
+    }
 
     @GetMapping
     public List<Discount> getAll() {

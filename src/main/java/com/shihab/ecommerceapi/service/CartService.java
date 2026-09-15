@@ -4,7 +4,6 @@ import com.shihab.ecommerceapi.model.Cart;
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.repository.CartRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,9 +11,12 @@ import java.util.Optional;
 
 @Service
 public class CartService {
-    
-    @Autowired
-    private CartRepository cartRepository;
+
+    private final CartRepository cartRepository;
+
+    public CartService(CartRepository cartRepository) {
+        this.cartRepository = cartRepository;
+    }
 
     public List<Cart> findAll() {
         return cartRepository.findAll();

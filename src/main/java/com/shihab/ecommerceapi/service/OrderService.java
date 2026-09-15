@@ -7,7 +7,6 @@ import com.shihab.ecommerceapi.model.OrderItem;
 import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.repository.OrderItemRepository;
 import com.shihab.ecommerceapi.repository.OrderRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,9 +15,17 @@ import java.util.Optional;
 @Service
 public class OrderService {
 
-    @Autowired private OrderRepository orderRepository;
-    @Autowired private OrderItemRepository orderItemRepository;
-    @Autowired private CartService cartService;
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final CartService cartService;
+
+    public OrderService(OrderRepository orderRepository,
+                         OrderItemRepository orderItemRepository,
+                         CartService cartService) {
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.cartService = cartService;
+    }
 
     public List<Order> findAll() {
         return orderRepository.findAll();

@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.ProductImage;
 import com.shihab.ecommerceapi.service.ProductImageService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,9 +10,12 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/productimages")
 public class ProductImageController {
-    
-    @Autowired
-    private ProductImageService productimageService;
+
+    private final ProductImageService productimageService;
+
+    public ProductImageController(ProductImageService productimageService) {
+        this.productimageService = productimageService;
+    }
 
     @GetMapping
     public List<ProductImage> getAll() {

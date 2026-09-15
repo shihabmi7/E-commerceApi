@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Wishlist;
 import com.shihab.ecommerceapi.service.WishlistService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,9 +10,12 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/wishlists")
 public class WishlistController {
-    
-    @Autowired
-    private WishlistService wishlistService;
+
+    private final WishlistService wishlistService;
+
+    public WishlistController(WishlistService wishlistService) {
+        this.wishlistService = wishlistService;
+    }
 
     @GetMapping
     public List<Wishlist> getAll() {

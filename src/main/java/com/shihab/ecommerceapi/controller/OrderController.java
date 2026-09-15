@@ -3,7 +3,6 @@ package com.shihab.ecommerceapi.controller;
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
 import com.shihab.ecommerceapi.model.Order;
 import com.shihab.ecommerceapi.service.OrderService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,9 +11,12 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
-    
-    @Autowired
-    private OrderService orderService;
+
+    private final OrderService orderService;
+
+    public OrderController(OrderService orderService) {
+        this.orderService = orderService;
+    }
 
     @GetMapping
     public List<Order> getAll() {
