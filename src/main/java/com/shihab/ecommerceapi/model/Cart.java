@@ -24,5 +24,8 @@ public class Cart {
 
     private Integer quantity;
 
+    /** Unit price snapshotted from the product at the moment the line was first added to the cart. */
+    private Double price;
+
     // Getters and setters...
 }
