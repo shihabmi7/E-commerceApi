@@ -8,6 +8,7 @@ import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.repository.OrderItemRepository;
 import com.shihab.ecommerceapi.repository.OrderRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +46,7 @@ public class OrderService {
 
     // existing CRUD methods omitted…
 
+    @Transactional
     public Order placeOrder(PlaceOrderRequest req) {
         // 1) fetch cart items
         List<Cart> carts = cartService.findByUserId(req.getUserId());
