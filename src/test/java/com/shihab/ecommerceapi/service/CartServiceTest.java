@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Optional;
@@ -83,11 +84,11 @@ class CartServiceTest {
         when(productRepository.findById(10)).thenReturn(Optional.of(product));
         ArgumentCaptor<Cart> captor = ArgumentCaptor.forClass(Cart.class);
         Cart saved = new Cart(2, new User(), product, 3, 999.0);
-        when(cartRepository.save(any(Cart.class))).thenReturn(saved);
+        when(cartRepository.saveAndFlush(any(Cart.class))).thenReturn(saved);
 
         Cart result = cartService.addToCart(1, 10, 3);
 
-        verify(cartRepository).save(captor.capture());
+        verify(cartRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getQuantity()).isEqualTo(3);
         assertThat(captor.getValue().getPrice()).isEqualTo(999.0);
         assertThat(result.getId()).isEqualTo(2);
@@ -101,5 +102,28 @@ class CartServiceTest {
         assertThatThrownBy(() -> cartService.addToCart(1, 999, 1))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("999");
+    }
+
+    @Test
+    void addToCart_fallsBackToUpdate_whenConcurrentRequestWinsTheInsertRace() {
+        // Simulates two near-simultaneous addToCart calls for the same (user, product):
+        // both see "no existing row" on the initial check, this call loses the race to
+        // insert (the DB's unique constraint rejects it), so it must fall back to finding
+        // and updating the row the other request just created — never leaving a duplicate.
+        Product product = new Product(10, "Laptop", "desc", 999.0, 5, null);
+        when(cartRepository.findByUserIdAndProductId(1, 10))
+                .thenReturn(Optional.empty())                                   // initial check: nothing yet
+                .thenReturn(Optional.of(new Cart(2, new User(), product, 2, 999.0))); // fallback lookup: the winner's row
+        when(productRepository.findById(10)).thenReturn(Optional.of(product));
+        when(cartRepository.saveAndFlush(any(Cart.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"));
+        when(cartRepository.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Cart result = cartService.addToCart(1, 10, 3);
+
+        assertThat(result.getQuantity()).isEqualTo(5); // the winner's 2 + this request's 3
+        assertThat(result.getId()).isEqualTo(2);        // updated the winner's row, not a new one
+        verify(cartRepository, times(2)).findByUserIdAndProductId(1, 10);
+        verify(cartRepository, times(1)).save(any(Cart.class)); // one update, no duplicate insert
     }
 }
