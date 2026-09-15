@@ -5,6 +5,7 @@ import com.shihab.ecommerceapi.dto.ProductInCartDto;
 import com.shihab.ecommerceapi.model.Cart;
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.service.CartService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -29,12 +30,12 @@ public class CartController {
     }
 
     @PostMapping
-    public Cart create(@RequestBody Cart cart) {
+    public Cart create(@Valid @RequestBody Cart cart) {
         return cartService.save(cart);
     }
 
     @PutMapping("/{id}")
-    public Cart update(@PathVariable Integer id, @RequestBody Cart updatedCart) {
+    public Cart update(@PathVariable Integer id, @Valid @RequestBody Cart updatedCart) {
         updatedCart.setId(id);
         return cartService.save(updatedCart);
     }
@@ -91,7 +92,7 @@ public class CartController {
     }
 
     @PostMapping("/add")
-    public Cart addToCart(@RequestBody AddToCartRequest req) {
+    public Cart addToCart(@Valid @RequestBody AddToCartRequest req) {
         return cartService.addToCart(
                 req.getUserId(),
                 req.getProductId(),

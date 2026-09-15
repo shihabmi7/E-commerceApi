@@ -3,6 +3,7 @@ package com.shihab.ecommerceapi.controller;
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
 import com.shihab.ecommerceapi.model.Order;
 import com.shihab.ecommerceapi.service.OrderService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,12 +30,12 @@ public class OrderController {
     }
 
     @PostMapping
-    public Order create(@RequestBody Order order) {
+    public Order create(@Valid @RequestBody Order order) {
         return orderService.save(order);
     }
 
     @PutMapping("/{id}")
-    public Order update(@PathVariable Integer id, @RequestBody Order updatedOrder) {
+    public Order update(@PathVariable Integer id, @Valid @RequestBody Order updatedOrder) {
         updatedOrder.setId(id);
         return orderService.save(updatedOrder);
     }
@@ -47,7 +48,7 @@ public class OrderController {
     // existing CRUD endpoints omitted…
 
     @PostMapping("/place")
-    public Order placeOrder(@RequestBody PlaceOrderRequest req) {
+    public Order placeOrder(@Valid @RequestBody PlaceOrderRequest req) {
         return orderService.placeOrder(req);
     }
 

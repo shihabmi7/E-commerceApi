@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.OrderItem;
 import com.shihab.ecommerceapi.service.OrderItemService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class OrderItemController {
     }
 
     @PostMapping
-    public OrderItem create(@RequestBody OrderItem orderitem) {
+    public OrderItem create(@Valid @RequestBody OrderItem orderitem) {
         return orderitemService.save(orderitem);
     }
 
     @PutMapping("/{id}")
-    public OrderItem update(@PathVariable Integer id, @RequestBody OrderItem updatedOrderItem) {
+    public OrderItem update(@PathVariable Integer id, @Valid @RequestBody OrderItem updatedOrderItem) {
         updatedOrderItem.setId(id);
         return orderitemService.save(updatedOrderItem);
     }

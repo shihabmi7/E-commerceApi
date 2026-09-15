@@ -3,6 +3,8 @@ package com.shihab.ecommerceapi.model;
 import lombok.*;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
 
@@ -16,10 +18,12 @@ public class Payment {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @NotNull
     @ManyToOne
     @JoinColumn(name = "order_id")
     private Order order;
 
+    @NotBlank
     private String paymentMethod;
 
     @Enumerated(EnumType.STRING)

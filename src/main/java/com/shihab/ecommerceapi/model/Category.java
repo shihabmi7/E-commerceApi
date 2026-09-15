@@ -3,6 +3,7 @@ package com.shihab.ecommerceapi.model;
 import lombok.*;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 
 
 @Entity
@@ -15,6 +16,7 @@ public class Category {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @NotBlank
     private String name;
     private String description;
 

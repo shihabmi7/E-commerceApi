@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Review;
 import com.shihab.ecommerceapi.service.ReviewService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class ReviewController {
     }
 
     @PostMapping
-    public Review create(@RequestBody Review review) {
+    public Review create(@Valid @RequestBody Review review) {
         return reviewService.save(review);
     }
 
     @PutMapping("/{id}")
-    public Review update(@PathVariable Integer id, @RequestBody Review updatedReview) {
+    public Review update(@PathVariable Integer id, @Valid @RequestBody Review updatedReview) {
         updatedReview.setId(id);
         return reviewService.save(updatedReview);
     }

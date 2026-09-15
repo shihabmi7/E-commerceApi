@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Address;
 import com.shihab.ecommerceapi.service.AddressService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class AddressController extends BaseController {
     }
 
     @PostMapping
-    public Address create(@RequestBody Address address) {
+    public Address create(@Valid @RequestBody Address address) {
         return addressService.save(address);
     }
 
     @PutMapping("/{id}")
-    public Address update(@PathVariable Integer id, @RequestBody Address updatedAddress) {
+    public Address update(@PathVariable Integer id, @Valid @RequestBody Address updatedAddress) {
         updatedAddress.setId(id);
         return addressService.save(updatedAddress);
     }

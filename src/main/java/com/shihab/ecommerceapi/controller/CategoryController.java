@@ -3,6 +3,7 @@ package com.shihab.ecommerceapi.controller;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Category;
 import com.shihab.ecommerceapi.service.CategoryService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,12 +31,12 @@ public class CategoryController extends BaseController {
     }
 
     @PostMapping
-    public Category create(@RequestBody Category category) {
+    public Category create(@Valid @RequestBody Category category) {
         return categoryService.save(category);
     }
 
     @PutMapping("/{id}")
-    public Category update(@PathVariable Integer id, @RequestBody Category updatedCategory) {
+    public Category update(@PathVariable Integer id, @Valid @RequestBody Category updatedCategory) {
         updatedCategory.setId(id);
         return categoryService.save(updatedCategory);
     }

@@ -96,6 +96,18 @@ class ProductControllerTest {
     }
 
     @Test
+    void create_returns400_whenNameBlankAndPriceNegative() throws Exception {
+        Product invalid = new Product(null, "", "desc", -50.0, 5, null);
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalid)))
+                .andExpect(status().isBadRequest());
+
+        verify(productService, never()).save(any());
+    }
+
+    @Test
     void delete_returns200() throws Exception {
         doNothing().when(productService).deleteById(1);
 

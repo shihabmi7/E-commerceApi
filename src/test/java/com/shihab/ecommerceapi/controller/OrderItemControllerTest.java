@@ -1,7 +1,9 @@
 package com.shihab.ecommerceapi.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shihab.ecommerceapi.model.Order;
 import com.shihab.ecommerceapi.model.OrderItem;
+import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.service.JwtService;
 import com.shihab.ecommerceapi.service.OrderItemService;
 import com.shihab.ecommerceapi.service.UserDetailsServiceImpl;
@@ -30,6 +32,12 @@ class OrderItemControllerTest {
 
     @Test void getAll() throws Exception { when(orderItemService.findAll()).thenReturn(List.of(new OrderItem())); mockMvc.perform(get("/api/orderitems")).andExpect(status().isOk()); }
     @Test void getById() throws Exception { when(orderItemService.findById(1)).thenReturn(Optional.of(new OrderItem())); mockMvc.perform(get("/api/orderitems/1")).andExpect(status().isOk()); }
-    @Test void create() throws Exception { OrderItem oi = new OrderItem(); when(orderItemService.save(any())).thenReturn(oi); mockMvc.perform(post("/api/orderitems").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(oi))).andExpect(status().isOk()); }
+    @Test void create() throws Exception {
+        Order order = new Order(); order.setId(1);
+        Product product = new Product(); product.setId(1);
+        OrderItem oi = new OrderItem(1, order, product, 2, 50.0);
+        when(orderItemService.save(any())).thenReturn(oi);
+        mockMvc.perform(post("/api/orderitems").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(oi))).andExpect(status().isOk());
+    }
     @Test void deleteById() throws Exception { doNothing().when(orderItemService).deleteById(1); mockMvc.perform(delete("/api/orderitems/1")).andExpect(status().isOk()); }
 }
