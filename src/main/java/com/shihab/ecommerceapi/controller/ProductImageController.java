@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.ProductImage;
 import com.shihab.ecommerceapi.service.ProductImageService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class ProductImageController {
     }
 
     @PostMapping
-    public ProductImage create(@RequestBody ProductImage productimage) {
+    public ProductImage create(@Valid @RequestBody ProductImage productimage) {
         return productimageService.save(productimage);
     }
 
     @PutMapping("/{id}")
-    public ProductImage update(@PathVariable Integer id, @RequestBody ProductImage updatedProductImage) {
+    public ProductImage update(@PathVariable Integer id, @Valid @RequestBody ProductImage updatedProductImage) {
         updatedProductImage.setId(id);
         return productimageService.save(updatedProductImage);
     }

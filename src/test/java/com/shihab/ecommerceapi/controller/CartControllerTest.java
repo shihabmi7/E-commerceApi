@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shihab.ecommerceapi.dto.AddToCartRequest;
 import com.shihab.ecommerceapi.model.Cart;
 import com.shihab.ecommerceapi.model.Product;
+import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.service.CartService;
 import com.shihab.ecommerceapi.service.JwtService;
 import com.shihab.ecommerceapi.service.UserDetailsServiceImpl;
@@ -92,8 +93,9 @@ class CartControllerTest {
 
     @Test
     void create_savesCart() throws Exception {
-        Cart cart = new Cart(null, null, new Product(), 1, 10.0);
-        when(cartService.save(any())).thenReturn(new Cart(1, null, new Product(), 1, 10.0));
+        User user = new User(); user.setId(1);
+        Cart cart = new Cart(null, user, new Product(), 1, 10.0);
+        when(cartService.save(any())).thenReturn(new Cart(1, user, new Product(), 1, 10.0));
         mockMvc.perform(post("/api/cart")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(cart)))

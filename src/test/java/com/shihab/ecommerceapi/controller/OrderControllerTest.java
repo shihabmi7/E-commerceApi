@@ -2,7 +2,9 @@ package com.shihab.ecommerceapi.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
+import com.shihab.ecommerceapi.model.Address;
 import com.shihab.ecommerceapi.model.Order;
+import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.service.JwtService;
 import com.shihab.ecommerceapi.service.OrderService;
 import com.shihab.ecommerceapi.service.UserDetailsServiceImpl;
@@ -44,7 +46,9 @@ class OrderControllerTest {
 
     @Test
     void create_returns200() throws Exception {
-        Order order = new Order();
+        User user = new User(); user.setId(1);
+        Address address = new Address(); address.setId(1);
+        Order order = new Order(null, user, address, 100.0, Order.Status.pending, null);
         when(orderService.save(any())).thenReturn(order);
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)

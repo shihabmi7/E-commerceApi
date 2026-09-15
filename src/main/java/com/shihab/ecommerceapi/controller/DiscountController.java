@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Discount;
 import com.shihab.ecommerceapi.service.DiscountService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class DiscountController {
     }
 
     @PostMapping
-    public Discount create(@RequestBody Discount discount) {
+    public Discount create(@Valid @RequestBody Discount discount) {
         return discountService.save(discount);
     }
 
     @PutMapping("/{id}")
-    public Discount update(@PathVariable Integer id, @RequestBody Discount updatedDiscount) {
+    public Discount update(@PathVariable Integer id, @Valid @RequestBody Discount updatedDiscount) {
         updatedDiscount.setId(id);
         return discountService.save(updatedDiscount);
     }

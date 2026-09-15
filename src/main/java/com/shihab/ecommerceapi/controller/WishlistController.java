@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Wishlist;
 import com.shihab.ecommerceapi.service.WishlistService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class WishlistController {
     }
 
     @PostMapping
-    public Wishlist create(@RequestBody Wishlist wishlist) {
+    public Wishlist create(@Valid @RequestBody Wishlist wishlist) {
         return wishlistService.save(wishlist);
     }
 
     @PutMapping("/{id}")
-    public Wishlist update(@PathVariable Integer id, @RequestBody Wishlist updatedWishlist) {
+    public Wishlist update(@PathVariable Integer id, @Valid @RequestBody Wishlist updatedWishlist) {
         updatedWishlist.setId(id);
         return wishlistService.save(updatedWishlist);
     }

@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Shipping;
 import com.shihab.ecommerceapi.service.ShippingService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class ShippingController {
     }
 
     @PostMapping
-    public Shipping create(@RequestBody Shipping shipping) {
+    public Shipping create(@Valid @RequestBody Shipping shipping) {
         return shippingService.save(shipping);
     }
 
     @PutMapping("/{id}")
-    public Shipping update(@PathVariable Integer id, @RequestBody Shipping updatedShipping) {
+    public Shipping update(@PathVariable Integer id, @Valid @RequestBody Shipping updatedShipping) {
         updatedShipping.setId(id);
         return shippingService.save(updatedShipping);
     }

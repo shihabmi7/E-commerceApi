@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class UserController {
     }
 
     @PostMapping
-    public User create(@RequestBody User user) {
+    public User create(@Valid @RequestBody User user) {
         return userService.save(user);
     }
 
     @PutMapping("/{id}")
-    public User update(@PathVariable Integer id, @RequestBody User updatedUser) {
+    public User update(@PathVariable Integer id, @Valid @RequestBody User updatedUser) {
         updatedUser.setId(id);
         return userService.save(updatedUser);
     }

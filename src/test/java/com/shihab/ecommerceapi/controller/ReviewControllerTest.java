@@ -1,7 +1,9 @@
 package com.shihab.ecommerceapi.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.model.Review;
+import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.service.JwtService;
 import com.shihab.ecommerceapi.service.ReviewService;
 import com.shihab.ecommerceapi.service.UserDetailsServiceImpl;
@@ -30,6 +32,26 @@ class ReviewControllerTest {
 
     @Test void getAll() throws Exception { when(reviewService.findAll()).thenReturn(List.of(new Review())); mockMvc.perform(get("/api/reviews")).andExpect(status().isOk()); }
     @Test void getById() throws Exception { when(reviewService.findById(1)).thenReturn(Optional.of(new Review())); mockMvc.perform(get("/api/reviews/1")).andExpect(status().isOk()); }
-    @Test void create() throws Exception { Review r = new Review(); when(reviewService.save(any())).thenReturn(r); mockMvc.perform(post("/api/reviews").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(r))).andExpect(status().isOk()); }
+    @Test void create() throws Exception {
+        User user = new User(); user.setId(1);
+        Product product = new Product(); product.setId(1);
+        Review r = new Review(1, user, product, 5, "Great product!");
+        when(reviewService.save(any())).thenReturn(r);
+        mockMvc.perform(post("/api/reviews").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(r))).andExpect(status().isOk());
+    }
     @Test void deleteById() throws Exception { doNothing().when(reviewService).deleteById(1); mockMvc.perform(delete("/api/reviews/1")).andExpect(status().isOk()); }
+
+    @Test
+    void create_returns400_whenRatingOutOfRange() throws Exception {
+        User user = new User(); user.setId(1);
+        Product product = new Product(); product.setId(1);
+        Review invalid = new Review(null, user, product, 999, "way out of range");
+
+        mockMvc.perform(post("/api/reviews")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalid)))
+                .andExpect(status().isBadRequest());
+
+        verify(reviewService, never()).save(any());
+    }
 }

@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Payment;
 import com.shihab.ecommerceapi.service.PaymentService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,12 +29,12 @@ public class PaymentController {
     }
 
     @PostMapping
-    public Payment create(@RequestBody Payment payment) {
+    public Payment create(@Valid @RequestBody Payment payment) {
         return paymentService.save(payment);
     }
 
     @PutMapping("/{id}")
-    public Payment update(@PathVariable Integer id, @RequestBody Payment updatedPayment) {
+    public Payment update(@PathVariable Integer id, @Valid @RequestBody Payment updatedPayment) {
         updatedPayment.setId(id);
         return paymentService.save(updatedPayment);
     }
