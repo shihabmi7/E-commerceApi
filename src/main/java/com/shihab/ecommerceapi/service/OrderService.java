@@ -51,9 +51,10 @@ public class OrderService {
         // 1) fetch cart items
         List<Cart> carts = cartService.findByUserId(req.getUserId());
 
-        // 2) compute total
+        // 2) compute total using the price snapshotted at add-to-cart time,
+        // not the product's current (possibly changed) price
         double total = carts.stream()
-                .mapToDouble(c -> c.getProduct().getPrice() * c.getQuantity())
+                .mapToDouble(c -> c.getPrice() * c.getQuantity())
                 .sum();
 
         // 3) create Order
@@ -71,7 +72,7 @@ public class OrderService {
             item.setOrder(savedOrder);
             item.setProduct(cart.getProduct());
             item.setQuantity(cart.getQuantity());
-            item.setPrice(cart.getProduct().getPrice());
+            item.setPrice(cart.getPrice());
             orderItemRepository.save(item);
         }
 
