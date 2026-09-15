@@ -32,3 +32,7 @@ services:
       # RabbitMQ connection settings
       - SPRING_RABBITMQ_HOST=rabbitmq # Refers to the container name, allowing internal Docker network resolution
       - SPRING_RABBITMQ_PORT=5672
+
+      # JWT signing key — supplied from the host shell or a local .env file (see .env.example),
+      # never hardcoded here. Generate one with: openssl rand -base64 32
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}

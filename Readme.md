@@ -52,18 +52,20 @@ A **robust**, **scalable** Spring Boot backend for an online store, designed wi
    git clone https://github.com/shihabmi7/E-commerceAPI.git
    cd E-commerceAPI
    ```
-2. **`application.properties`**
-   ```properties
-   server.port=9090
-   spring.datasource.url=jdbc:mysql://localhost:3306/ecommerce_db
-   spring.datasource.username=YOUR_DB_USER
-   spring.datasource.password=YOUR_DB_PASS
+2. **Configure secrets**
 
-   security.jwt.secret=YOUR_BASE64_SECRET
-   security.jwt.expiration-ms=3600000
-
-   springdoc.api-docs.path=/v3/api-docs
-   springdoc.swagger-ui.path=/swagger-ui/index.html
+   Copy `.env.example` to `.env` and fill in real values — never hardcode secrets in
+   `application.properties`. The JWT signing key is **required** (the app fails fast on
+   startup if it's missing):
+   ```bash
+   cp .env.example .env
+   # generate a signing key and paste it into .env as JWT_SECRET_KEY=
+   openssl rand -base64 32
+   ```
+   Then export the vars into your shell before running locally (or let `docker-compose`
+   pick them up from `.env` automatically):
+   ```bash
+   export $(cat .env | xargs)
    ```
 3. **Initialize schema**
    ```bash
@@ -122,7 +124,7 @@ _(And other CRUD endpoints under `/api/` for users, products, categories, etc.)_
 
 - mvn clear package [CREATE JAR]
 - docker build -t image_name .  [From project root folder]
-- docker run -p 5555:8080 ecommerce-api
+- docker run -p 5555:8080 -e JWT_SECRET_KEY=$(openssl rand -base64 32) ecommerce-api
 - http://localhost:5555/swagger-ui/index.html
 - docker images
 - docker ps

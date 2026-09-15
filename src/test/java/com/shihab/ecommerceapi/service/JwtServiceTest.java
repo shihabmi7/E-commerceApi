@@ -10,7 +10,9 @@ class JwtServiceTest {
 
     private JwtService jwtService;
 
-    private static final String SECRET = "3cfa76ef14937c1c0ea519f8fc057a80fcd04a7420f8e8bcd0a7567c272e007b";
+    // Self-contained fixture value: only ever used within this test's own in-memory
+    // JwtService instance, never touches real infrastructure — not a security-sensitive secret.
+    private static final String SECRET = "dGhpcyBpcyBhIHRlc3Qtb25seSBmaXh0dXJlIHZhbHVl";
     private static final long EXPIRATION = 12222200000L;
 
     @BeforeEach

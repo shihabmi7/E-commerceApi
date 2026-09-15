@@ -1,0 +1,20 @@
+# Secrets — never let these into a Docker build context
+.env
+.env.*
+!.env.example
+
+# VCS / IDE / OS cruft — irrelevant to the build, some can be large
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+
+# Build output — the build stage runs its own `mvn clean package`
+target/
+
+# Non-app content — not needed inside the image
+k8s/
+learning/
+interview-questions/
+Readme.md
