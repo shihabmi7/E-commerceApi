@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.model.Address;
 import com.shihab.ecommerceapi.service.AddressService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,8 +11,11 @@ import java.util.Optional;
 @RequestMapping("/api/addresses")
 public class AddressController extends BaseController {
 
-    @Autowired
-    private AddressService addressService;
+    private final AddressService addressService;
+
+    public AddressController(AddressService addressService) {
+        this.addressService = addressService;
+    }
 
     @GetMapping
     public List<Address> getAll() {

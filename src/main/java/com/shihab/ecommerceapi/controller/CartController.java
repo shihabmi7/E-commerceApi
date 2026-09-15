@@ -5,7 +5,6 @@ import com.shihab.ecommerceapi.dto.ProductInCartDto;
 import com.shihab.ecommerceapi.model.Cart;
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.service.CartService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -17,9 +16,12 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/cart")
 public class CartController {
-    
-    @Autowired
-    private CartService cartService;
+
+    private final CartService cartService;
+
+    public CartController(CartService cartService) {
+        this.cartService = cartService;
+    }
 
     @GetMapping("/{id}")
     public Optional<Cart> getById(@PathVariable Integer id) {

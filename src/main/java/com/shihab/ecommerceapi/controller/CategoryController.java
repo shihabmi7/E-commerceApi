@@ -3,7 +3,6 @@ package com.shihab.ecommerceapi.controller;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Category;
 import com.shihab.ecommerceapi.service.CategoryService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,8 +11,11 @@ import java.util.List;
 @RequestMapping("/api/categories")
 public class CategoryController extends BaseController {
 
-    @Autowired
-    private CategoryService categoryService;
+    private final CategoryService categoryService;
+
+    public CategoryController(CategoryService categoryService) {
+        this.categoryService = categoryService;
+    }
 
     @GetMapping
     public List<Category> getAll() {

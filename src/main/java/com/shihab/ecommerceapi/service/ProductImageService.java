@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.model.ProductImage;
 import com.shihab.ecommerceapi.repository.ProductImageRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -10,9 +9,12 @@ import java.util.Optional;
 
 @Service
 public class ProductImageService {
-    
-    @Autowired
-    private ProductImageRepository productimageRepository;
+
+    private final ProductImageRepository productimageRepository;
+
+    public ProductImageService(ProductImageRepository productimageRepository) {
+        this.productimageRepository = productimageRepository;
+    }
 
     public List<ProductImage> findAll() {
         return productimageRepository.findAll();

@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.model.OrderItem;
 import com.shihab.ecommerceapi.repository.OrderItemRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -10,9 +9,12 @@ import java.util.Optional;
 
 @Service
 public class OrderItemService {
-    
-    @Autowired
-    private OrderItemRepository orderitemRepository;
+
+    private final OrderItemRepository orderitemRepository;
+
+    public OrderItemService(OrderItemRepository orderitemRepository) {
+        this.orderitemRepository = orderitemRepository;
+    }
 
     public List<OrderItem> findAll() {
         return orderitemRepository.findAll();

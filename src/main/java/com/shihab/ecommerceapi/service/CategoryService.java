@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.model.Category;
 import com.shihab.ecommerceapi.repository.CategoryRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -10,9 +9,12 @@ import java.util.Optional;
 
 @Service
 public class CategoryService {
-    
-    @Autowired
-    private CategoryRepository categoryRepository;
+
+    private final CategoryRepository categoryRepository;
+
+    public CategoryService(CategoryRepository categoryRepository) {
+        this.categoryRepository = categoryRepository;
+    }
 
     public List<Category> findAll() {
         return categoryRepository.findAll();

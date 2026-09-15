@@ -2,7 +2,6 @@ package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.model.Shipping;
 import com.shihab.ecommerceapi.repository.ShippingRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -10,9 +9,12 @@ import java.util.Optional;
 
 @Service
 public class ShippingService {
-    
-    @Autowired
-    private ShippingRepository shippingRepository;
+
+    private final ShippingRepository shippingRepository;
+
+    public ShippingService(ShippingRepository shippingRepository) {
+        this.shippingRepository = shippingRepository;
+    }
 
     public List<Shipping> findAll() {
         return shippingRepository.findAll();
