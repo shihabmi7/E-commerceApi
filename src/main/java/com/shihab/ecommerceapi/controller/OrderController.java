@@ -1,13 +1,13 @@
 package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Order;
 import com.shihab.ecommerceapi.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -25,8 +25,9 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public Optional<Order> getById(@PathVariable Integer id) {
-        return orderService.findById(id);
+    public Order getById(@PathVariable Integer id) {
+        return orderService.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("No order found with ID: " + id));
     }
 
     @PostMapping

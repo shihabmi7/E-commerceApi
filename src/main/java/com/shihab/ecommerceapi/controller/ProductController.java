@@ -1,12 +1,12 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.service.ProductService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/products")
@@ -24,8 +24,9 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public Optional<Product> getById(@PathVariable Integer id) {
-        return productService.findById(id);
+    public Product getById(@PathVariable Integer id) {
+        return productService.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("No product found with ID: " + id));
     }
 
     @PostMapping

@@ -46,6 +46,12 @@ class UserControllerTest {
     }
 
     @Test
+    void getById_returns404_whenNotFound() throws Exception {
+        when(userService.findById(99)).thenReturn(Optional.empty());
+        mockMvc.perform(get("/api/users/99")).andExpect(status().isNotFound());
+    }
+
+    @Test
     void create_returns200() throws Exception {
         User u = new User(null, "Bob", "bob@example.com", "password123", "456", User.Role.customer, null);
         when(userService.save(any())).thenReturn(new User(2, "Bob", "bob@example.com", "password123", "456", User.Role.customer, null));
