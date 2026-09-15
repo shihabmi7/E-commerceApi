@@ -91,6 +91,13 @@ class CartControllerTest {
     }
 
     @Test
+    void getById_returns404_whenNotFound() throws Exception {
+        when(cartService.findById(99)).thenReturn(Optional.empty());
+        mockMvc.perform(get("/api/cart/99"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void create_savesCart() throws Exception {
         Cart cart = new Cart(null, null, new Product(), 1, 10.0);
         when(cartService.save(any())).thenReturn(new Cart(1, null, new Product(), 1, 10.0));

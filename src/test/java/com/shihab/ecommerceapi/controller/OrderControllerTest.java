@@ -43,6 +43,12 @@ class OrderControllerTest {
     }
 
     @Test
+    void getById_returns404_whenNotFound() throws Exception {
+        when(orderService.findById(99)).thenReturn(Optional.empty());
+        mockMvc.perform(get("/api/orders/99")).andExpect(status().isNotFound());
+    }
+
+    @Test
     void create_returns200() throws Exception {
         Order order = new Order();
         when(orderService.save(any())).thenReturn(order);

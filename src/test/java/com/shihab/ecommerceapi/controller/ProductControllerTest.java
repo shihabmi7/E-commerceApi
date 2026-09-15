@@ -63,11 +63,11 @@ class ProductControllerTest {
     }
 
     @Test
-    void getById_returnsEmpty_whenProductNotFound() throws Exception {
+    void getById_returns404_whenProductNotFound() throws Exception {
         when(productService.findById(99)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/products/99"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNotFound());
     }
 
     @Test

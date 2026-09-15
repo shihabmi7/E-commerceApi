@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.dto.AddToCartRequest;
 import com.shihab.ecommerceapi.dto.ProductInCartDto;
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Cart;
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.service.CartService;
@@ -10,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -24,8 +24,9 @@ public class CartController {
     }
 
     @GetMapping("/{id}")
-    public Optional<Cart> getById(@PathVariable Integer id) {
-        return cartService.findById(id);
+    public Cart getById(@PathVariable Integer id) {
+        return cartService.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("No cart entry found with ID: " + id));
     }
 
     @PostMapping

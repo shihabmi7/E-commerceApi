@@ -1,11 +1,11 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.service.UserService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
@@ -23,8 +23,9 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public Optional<User> getById(@PathVariable Integer id) {
-        return userService.findById(id);
+    public User getById(@PathVariable Integer id) {
+        return userService.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("No user found with ID: " + id));
     }
 
     @PostMapping
