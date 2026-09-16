@@ -37,7 +37,7 @@ class ShippingControllerTest {
         Address address = new Address(); address.setId(1);
         Shipping s = new Shipping(1, order, address, null, null, null);
         when(shippingService.save(any())).thenReturn(s);
-        mockMvc.perform(post("/api/shippings").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(s))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/shippings").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(s))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(shippingService).deleteById(1); mockMvc.perform(delete("/api/shippings/1")).andExpect(status().isOk()); }
+    @Test void deleteById() throws Exception { doNothing().when(shippingService).deleteById(1); mockMvc.perform(delete("/api/shippings/1")).andExpect(status().isNoContent()); }
 }

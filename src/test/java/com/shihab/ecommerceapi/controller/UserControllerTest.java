@@ -35,7 +35,7 @@ class UserControllerTest {
         when(userService.findAll()).thenReturn(List.of(u));
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").value("alice@example.com"));
+                .andExpect(jsonPath("$.data[0].email").value("alice@example.com"));
     }
 
     @Test
@@ -58,12 +58,12 @@ class UserControllerTest {
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(u)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     @Test
     void delete_returns200() throws Exception {
         doNothing().when(userService).deleteById(1);
-        mockMvc.perform(delete("/api/users/1")).andExpect(status().isOk());
+        mockMvc.perform(delete("/api/users/1")).andExpect(status().isNoContent());
     }
 }

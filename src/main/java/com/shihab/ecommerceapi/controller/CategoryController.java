@@ -1,11 +1,16 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.dto.CustomResponse;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Category;
 import com.shihab.ecommerceapi.service.CategoryService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -19,30 +24,40 @@ public class CategoryController extends BaseController {
     }
 
     @GetMapping
-    public List<Category> getAll() {
-        return categoryService.findAll();
+    public ResponseEntity<CustomResponse<List<Category>>> getAll() {
+        List<Category> categories = categoryService.findAll();
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Categories fetched successfully", categories));
     }
 
     @GetMapping("/{id}")
-    public Category getById(@PathVariable Integer id) {
+    public ResponseEntity<CustomResponse<Category>> getById(@PathVariable Integer id) {
         log.info("Category getById called!");
-        return categoryService.findById(id).orElseThrow(() -> new EntityNotFoundException("" +
+        Category category = categoryService.findById(id).orElseThrow(() -> new EntityNotFoundException("" +
                 "No category found with ID: " + id));
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Category fetched successfully", category));
     }
 
     @PostMapping
-    public Category create(@Valid @RequestBody Category category) {
-        return categoryService.save(category);
+    public ResponseEntity<CustomResponse<Category>> create(@Valid @RequestBody Category category) {
+        Category saved = categoryService.save(category);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(saved.getId())
+                .toUri();
+        return ResponseEntity.created(location)
+                .body(new CustomResponse<>(HttpStatus.CREATED.value(), "Category created successfully", saved));
     }
 
     @PutMapping("/{id}")
-    public Category update(@PathVariable Integer id, @Valid @RequestBody Category updatedCategory) {
+    public ResponseEntity<CustomResponse<Category>> update(@PathVariable Integer id, @Valid @RequestBody Category updatedCategory) {
         updatedCategory.setId(id);
-        return categoryService.save(updatedCategory);
+        Category saved = categoryService.save(updatedCategory);
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Category updated successfully", saved));
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         categoryService.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

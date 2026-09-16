@@ -1,12 +1,17 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.dto.CustomResponse;
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.OrderItem;
 import com.shihab.ecommerceapi.service.OrderItemService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/orderitems")
@@ -19,28 +24,39 @@ public class OrderItemController {
     }
 
     @GetMapping
-    public List<OrderItem> getAll() {
-        return orderitemService.findAll();
+    public ResponseEntity<CustomResponse<List<OrderItem>>> getAll() {
+        List<OrderItem> orderItems = orderitemService.findAll();
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Order items fetched successfully", orderItems));
     }
 
     @GetMapping("/{id}")
-    public Optional<OrderItem> getById(@PathVariable Integer id) {
-        return orderitemService.findById(id);
+    public ResponseEntity<CustomResponse<OrderItem>> getById(@PathVariable Integer id) {
+        OrderItem orderItem = orderitemService.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("No order item found with ID: " + id));
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Order item fetched successfully", orderItem));
     }
 
     @PostMapping
-    public OrderItem create(@Valid @RequestBody OrderItem orderitem) {
-        return orderitemService.save(orderitem);
+    public ResponseEntity<CustomResponse<OrderItem>> create(@Valid @RequestBody OrderItem orderitem) {
+        OrderItem saved = orderitemService.save(orderitem);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(saved.getId())
+                .toUri();
+        return ResponseEntity.created(location)
+                .body(new CustomResponse<>(HttpStatus.CREATED.value(), "Order item created successfully", saved));
     }
 
     @PutMapping("/{id}")
-    public OrderItem update(@PathVariable Integer id, @Valid @RequestBody OrderItem updatedOrderItem) {
+    public ResponseEntity<CustomResponse<OrderItem>> update(@PathVariable Integer id, @Valid @RequestBody OrderItem updatedOrderItem) {
         updatedOrderItem.setId(id);
-        return orderitemService.save(updatedOrderItem);
+        OrderItem saved = orderitemService.save(updatedOrderItem);
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Order item updated successfully", saved));
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         orderitemService.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

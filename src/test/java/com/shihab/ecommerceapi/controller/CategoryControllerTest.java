@@ -36,7 +36,7 @@ class CategoryControllerTest {
         when(categoryService.findAll()).thenReturn(List.of(c));
         mockMvc.perform(get("/api/categories"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Electronics"));
+                .andExpect(jsonPath("$.data[0].name").value("Electronics"));
     }
 
     @Test
@@ -45,7 +45,7 @@ class CategoryControllerTest {
         when(categoryService.findById(1)).thenReturn(Optional.of(c));
         mockMvc.perform(get("/api/categories/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Books"));
+                .andExpect(jsonPath("$.data.name").value("Books"));
     }
 
     @Test
@@ -62,13 +62,13 @@ class CategoryControllerTest {
         mockMvc.perform(post("/api/categories")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(c)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(3));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value(3));
     }
 
     @Test
     void delete_returns200() throws Exception {
         doNothing().when(categoryService).deleteById(1);
-        mockMvc.perform(delete("/api/categories/1")).andExpect(status().isOk());
+        mockMvc.perform(delete("/api/categories/1")).andExpect(status().isNoContent());
     }
 }

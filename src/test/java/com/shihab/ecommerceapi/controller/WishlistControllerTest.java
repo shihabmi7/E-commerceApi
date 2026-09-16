@@ -37,7 +37,7 @@ class WishlistControllerTest {
         Product product = new Product(); product.setId(1);
         Wishlist w = new Wishlist(1, user, product);
         when(wishlistService.save(any())).thenReturn(w);
-        mockMvc.perform(post("/api/wishlists").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(w))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/wishlists").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(w))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(wishlistService).deleteById(1); mockMvc.perform(delete("/api/wishlists/1")).andExpect(status().isOk()); }
+    @Test void deleteById() throws Exception { doNothing().when(wishlistService).deleteById(1); mockMvc.perform(delete("/api/wishlists/1")).andExpect(status().isNoContent()); }
 }

@@ -1,14 +1,19 @@
 package com.shihab.ecommerceapi.controller;
 
 import com.shihab.ecommerceapi.dto.AddToCartRequest;
+import com.shihab.ecommerceapi.dto.CustomResponse;
 import com.shihab.ecommerceapi.dto.ProductInCartDto;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Cart;
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.service.CartService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,25 +30,34 @@ public class CartController {
     }
 
     @GetMapping("/{id}")
-    public Cart getById(@PathVariable Integer id) {
-        return cartService.findById(id)
+    public ResponseEntity<CustomResponse<Cart>> getById(@PathVariable Integer id) {
+        Cart cart = cartService.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("No cart entry found with ID: " + id));
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Cart entry fetched successfully", cart));
     }
 
     @PostMapping
-    public Cart create(@Valid @RequestBody Cart cart) {
-        return cartService.save(cart);
+    public ResponseEntity<CustomResponse<Cart>> create(@Valid @RequestBody Cart cart) {
+        Cart saved = cartService.save(cart);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(saved.getId())
+                .toUri();
+        return ResponseEntity.created(location)
+                .body(new CustomResponse<>(HttpStatus.CREATED.value(), "Cart entry created successfully", saved));
     }
 
     @PutMapping("/{id}")
-    public Cart update(@PathVariable Integer id, @Valid @RequestBody Cart updatedCart) {
+    public ResponseEntity<CustomResponse<Cart>> update(@PathVariable Integer id, @Valid @RequestBody Cart updatedCart) {
         updatedCart.setId(id);
-        return cartService.save(updatedCart);
+        Cart saved = cartService.save(updatedCart);
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Cart entry updated successfully", saved));
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         cartService.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 
     private static final double PRICE_CHANGE_EPSILON = 0.0001;
@@ -54,7 +68,7 @@ public class CartController {
      * was added (the customer is still charged the locked-in price at checkout).
      */
     @GetMapping
-    public List<ProductInCartDto> getCart(@RequestParam Integer userId) {
+    public ResponseEntity<CustomResponse<List<ProductInCartDto>>> getCart(@RequestParam Integer userId) {
         // 1) fetch all Cart entries for the user
         List<Cart> carts = cartService.findByUserId(userId);
 
@@ -63,7 +77,7 @@ public class CartController {
                 .collect(Collectors.groupingBy(Cart::getProduct, LinkedHashMap::new, Collectors.toList()));
 
         // 3) map to DTOs
-        return byProduct.entrySet().stream()
+        List<ProductInCartDto> result = byProduct.entrySet().stream()
                 .map(entry -> {
                     Product p = entry.getKey();
                     List<Cart> lines = entry.getValue();
@@ -90,15 +104,18 @@ public class CartController {
                     );
                 })
                 .collect(Collectors.toList());
+
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Cart fetched successfully", result));
     }
 
     @PostMapping("/add")
-    public Cart addToCart(@Valid @RequestBody AddToCartRequest req) {
-        return cartService.addToCart(
+    public ResponseEntity<CustomResponse<Cart>> addToCart(@Valid @RequestBody AddToCartRequest req) {
+        Cart cart = cartService.addToCart(
                 req.getUserId(),
                 req.getProductId(),
                 req.getQuantity()
         );
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Item added to cart successfully", cart));
     }
 
 
