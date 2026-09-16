@@ -37,7 +37,7 @@ class CartControllerTest {
         when(cartService.findByUserId(1)).thenReturn(List.of());
         mockMvc.perform(get("/api/cart").param("userId", "1"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("[]"));
+                .andExpect(content().json("{\"data\":[]}"));
     }
 
     @Test
@@ -48,11 +48,11 @@ class CartControllerTest {
 
         mockMvc.perform(get("/api/cart").param("userId", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].price").value(999.0))
-                .andExpect(jsonPath("$[0].lockedPrice").value(999.0))
-                .andExpect(jsonPath("$[0].priceChanged").value(false))
-                .andExpect(jsonPath("$[0].priceDelta").value(0.0))
-                .andExpect(jsonPath("$[0].quantity").value(2));
+                .andExpect(jsonPath("$.data[0].price").value(999.0))
+                .andExpect(jsonPath("$.data[0].lockedPrice").value(999.0))
+                .andExpect(jsonPath("$.data[0].priceChanged").value(false))
+                .andExpect(jsonPath("$.data[0].priceDelta").value(0.0))
+                .andExpect(jsonPath("$.data[0].quantity").value(2));
     }
 
     @Test
@@ -63,10 +63,10 @@ class CartControllerTest {
 
         mockMvc.perform(get("/api/cart").param("userId", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].price").value(1200.0))
-                .andExpect(jsonPath("$[0].lockedPrice").value(1000.0))
-                .andExpect(jsonPath("$[0].priceChanged").value(true))
-                .andExpect(jsonPath("$[0].priceDelta").value(200.0));
+                .andExpect(jsonPath("$.data[0].price").value(1200.0))
+                .andExpect(jsonPath("$.data[0].lockedPrice").value(1000.0))
+                .andExpect(jsonPath("$.data[0].priceChanged").value(true))
+                .andExpect(jsonPath("$.data[0].priceDelta").value(200.0));
     }
 
     @Test
@@ -77,10 +77,10 @@ class CartControllerTest {
 
         mockMvc.perform(get("/api/cart").param("userId", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].price").value(800.0))
-                .andExpect(jsonPath("$[0].lockedPrice").value(1000.0))
-                .andExpect(jsonPath("$[0].priceChanged").value(true))
-                .andExpect(jsonPath("$[0].priceDelta").value(-200.0));
+                .andExpect(jsonPath("$.data[0].price").value(800.0))
+                .andExpect(jsonPath("$.data[0].lockedPrice").value(1000.0))
+                .andExpect(jsonPath("$.data[0].priceChanged").value(true))
+                .andExpect(jsonPath("$.data[0].priceDelta").value(-200.0));
     }
 
     @Test
@@ -106,7 +106,7 @@ class CartControllerTest {
         mockMvc.perform(post("/api/cart")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(cart)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -124,6 +124,6 @@ class CartControllerTest {
     void delete_returns200() throws Exception {
         doNothing().when(cartService).deleteById(1);
         mockMvc.perform(delete("/api/cart/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 }

@@ -48,8 +48,8 @@ class ProductControllerTest {
 
         mockMvc.perform(get("/api/products"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Laptop"))
-                .andExpect(jsonPath("$[0].price").value(999.0));
+                .andExpect(jsonPath("$.data[0].name").value("Laptop"))
+                .andExpect(jsonPath("$.data[0].price").value(999.0));
     }
 
     @Test
@@ -59,7 +59,7 @@ class ProductControllerTest {
 
         mockMvc.perform(get("/api/products/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Laptop"));
+                .andExpect(jsonPath("$.data.name").value("Laptop"));
     }
 
     @Test
@@ -79,8 +79,8 @@ class ProductControllerTest {
         mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(input)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(2));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value(2));
     }
 
     @Test
@@ -92,7 +92,7 @@ class ProductControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updated)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Laptop Pro"));
+                .andExpect(jsonPath("$.data.name").value("Laptop Pro"));
     }
 
     @Test
@@ -112,6 +112,6 @@ class ProductControllerTest {
         doNothing().when(productService).deleteById(1);
 
         mockMvc.perform(delete("/api/products/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 }

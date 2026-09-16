@@ -1,11 +1,16 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.dto.CustomResponse;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.service.ProductService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -19,29 +24,39 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<Product> getAll() {
-        return productService.findAll();
+    public ResponseEntity<CustomResponse<List<Product>>> getAll() {
+        List<Product> products = productService.findAll();
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Products fetched successfully", products));
     }
 
     @GetMapping("/{id}")
-    public Product getById(@PathVariable Integer id) {
-        return productService.findById(id)
+    public ResponseEntity<CustomResponse<Product>> getById(@PathVariable Integer id) {
+        Product product = productService.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("No product found with ID: " + id));
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Product fetched successfully", product));
     }
 
     @PostMapping
-    public Product create(@Valid @RequestBody Product product) {
-        return productService.save(product);
+    public ResponseEntity<CustomResponse<Product>> create(@Valid @RequestBody Product product) {
+        Product saved = productService.save(product);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(saved.getId())
+                .toUri();
+        return ResponseEntity.created(location)
+                .body(new CustomResponse<>(HttpStatus.CREATED.value(), "Product created successfully", saved));
     }
 
     @PutMapping("/{id}")
-    public Product update(@PathVariable Integer id, @Valid @RequestBody Product updatedProduct) {
+    public ResponseEntity<CustomResponse<Product>> update(@PathVariable Integer id, @Valid @RequestBody Product updatedProduct) {
         updatedProduct.setId(id);
-        return productService.save(updatedProduct);
+        Product saved = productService.save(updatedProduct);
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Product updated successfully", saved));
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         productService.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -59,7 +59,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(order)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -71,12 +71,12 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/place")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     @Test
     void delete_returns200() throws Exception {
         doNothing().when(orderService).deleteById(1);
-        mockMvc.perform(delete("/api/orders/1")).andExpect(status().isOk());
+        mockMvc.perform(delete("/api/orders/1")).andExpect(status().isNoContent());
     }
 }

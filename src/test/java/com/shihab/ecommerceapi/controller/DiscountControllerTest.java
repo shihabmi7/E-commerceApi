@@ -35,7 +35,7 @@ class DiscountControllerTest {
         Product product = new Product(); product.setId(1);
         Discount d = new Discount(1, product, 15.0, null, null);
         when(discountService.save(any())).thenReturn(d);
-        mockMvc.perform(post("/api/discounts").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(d))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/discounts").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(d))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(discountService).deleteById(1); mockMvc.perform(delete("/api/discounts/1")).andExpect(status().isOk()); }
+    @Test void deleteById() throws Exception { doNothing().when(discountService).deleteById(1); mockMvc.perform(delete("/api/discounts/1")).andExpect(status().isNoContent()); }
 }

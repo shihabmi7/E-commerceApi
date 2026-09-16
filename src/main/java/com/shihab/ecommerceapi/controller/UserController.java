@@ -1,11 +1,16 @@
 package com.shihab.ecommerceapi.controller;
 
+import com.shihab.ecommerceapi.dto.CustomResponse;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -19,29 +24,39 @@ public class UserController {
     }
 
     @GetMapping
-    public List<User> getAll() {
-        return userService.findAll();
+    public ResponseEntity<CustomResponse<List<User>>> getAll() {
+        List<User> users = userService.findAll();
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "Users fetched successfully", users));
     }
 
     @GetMapping("/{id}")
-    public User getById(@PathVariable Integer id) {
-        return userService.findById(id)
+    public ResponseEntity<CustomResponse<User>> getById(@PathVariable Integer id) {
+        User user = userService.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("No user found with ID: " + id));
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "User fetched successfully", user));
     }
 
     @PostMapping
-    public User create(@Valid @RequestBody User user) {
-        return userService.save(user);
+    public ResponseEntity<CustomResponse<User>> create(@Valid @RequestBody User user) {
+        User saved = userService.save(user);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(saved.getId())
+                .toUri();
+        return ResponseEntity.created(location)
+                .body(new CustomResponse<>(HttpStatus.CREATED.value(), "User created successfully", saved));
     }
 
     @PutMapping("/{id}")
-    public User update(@PathVariable Integer id, @Valid @RequestBody User updatedUser) {
+    public ResponseEntity<CustomResponse<User>> update(@PathVariable Integer id, @Valid @RequestBody User updatedUser) {
         updatedUser.setId(id);
-        return userService.save(updatedUser);
+        User saved = userService.save(updatedUser);
+        return ResponseEntity.ok(new CustomResponse<>(HttpStatus.OK.value(), "User updated successfully", saved));
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         userService.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

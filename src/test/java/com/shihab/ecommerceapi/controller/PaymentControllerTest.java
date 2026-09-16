@@ -35,7 +35,7 @@ class PaymentControllerTest {
         Order order = new Order(); order.setId(1);
         Payment p = new Payment(1, order, "credit_card", Payment.PaymentStatus.pending, null);
         when(paymentService.save(any())).thenReturn(p);
-        mockMvc.perform(post("/api/payments").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(p))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/payments").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(p))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(paymentService).deleteById(1); mockMvc.perform(delete("/api/payments/1")).andExpect(status().isOk()); }
+    @Test void deleteById() throws Exception { doNothing().when(paymentService).deleteById(1); mockMvc.perform(delete("/api/payments/1")).andExpect(status().isNoContent()); }
 }

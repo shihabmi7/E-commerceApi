@@ -37,9 +37,9 @@ class ReviewControllerTest {
         Product product = new Product(); product.setId(1);
         Review r = new Review(1, user, product, 5, "Great product!");
         when(reviewService.save(any())).thenReturn(r);
-        mockMvc.perform(post("/api/reviews").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(r))).andExpect(status().isOk());
+        mockMvc.perform(post("/api/reviews").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(r))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(reviewService).deleteById(1); mockMvc.perform(delete("/api/reviews/1")).andExpect(status().isOk()); }
+    @Test void deleteById() throws Exception { doNothing().when(reviewService).deleteById(1); mockMvc.perform(delete("/api/reviews/1")).andExpect(status().isNoContent()); }
 
     @Test
     void create_returns400_whenRatingOutOfRange() throws Exception {
