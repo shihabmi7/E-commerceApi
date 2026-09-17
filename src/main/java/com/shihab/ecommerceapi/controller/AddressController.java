@@ -14,7 +14,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/addresses")
+@RequestMapping("/api/v1/addresses")
 public class AddressController extends BaseController {
 
     private final AddressService addressService;

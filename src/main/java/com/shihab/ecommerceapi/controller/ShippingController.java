@@ -14,7 +14,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/shippings")
+@RequestMapping("/api/v1/shippings")
 public class ShippingController {
 
     private final ShippingService shippingService;

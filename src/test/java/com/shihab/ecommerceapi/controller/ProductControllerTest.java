@@ -46,7 +46,7 @@ class ProductControllerTest {
         Product p = new Product(1, "Laptop", "desc", 999.0, 10, null);
         when(productService.findAll()).thenReturn(List.of(p));
 
-        mockMvc.perform(get("/api/products"))
+        mockMvc.perform(get("/api/v1/products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].name").value("Laptop"))
                 .andExpect(jsonPath("$.data[0].price").value(999.0));
@@ -57,7 +57,7 @@ class ProductControllerTest {
         Product p = new Product(1, "Laptop", "desc", 999.0, 10, null);
         when(productService.findById(1)).thenReturn(Optional.of(p));
 
-        mockMvc.perform(get("/api/products/1"))
+        mockMvc.perform(get("/api/v1/products/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("Laptop"));
     }
@@ -66,7 +66,7 @@ class ProductControllerTest {
     void getById_returns404_whenProductNotFound() throws Exception {
         when(productService.findById(99)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/products/99"))
+        mockMvc.perform(get("/api/v1/products/99"))
                 .andExpect(status().isNotFound());
     }
 
@@ -76,7 +76,7 @@ class ProductControllerTest {
         Product saved = new Product(2, "Phone", "desc", 499.0, 5, null);
         when(productService.save(any(Product.class))).thenReturn(saved);
 
-        mockMvc.perform(post("/api/products")
+        mockMvc.perform(post("/api/v1/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(input)))
                 .andExpect(status().isCreated())
@@ -88,7 +88,7 @@ class ProductControllerTest {
         Product updated = new Product(1, "Laptop Pro", "new desc", 1299.0, 3, null);
         when(productService.save(any(Product.class))).thenReturn(updated);
 
-        mockMvc.perform(put("/api/products/1")
+        mockMvc.perform(put("/api/v1/products/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updated)))
                 .andExpect(status().isOk())
@@ -99,7 +99,7 @@ class ProductControllerTest {
     void create_returns400_whenNameBlankAndPriceNegative() throws Exception {
         Product invalid = new Product(null, "", "desc", -50.0, 5, null);
 
-        mockMvc.perform(post("/api/products")
+        mockMvc.perform(post("/api/v1/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalid)))
                 .andExpect(status().isBadRequest());
@@ -111,7 +111,7 @@ class ProductControllerTest {
     void delete_returns200() throws Exception {
         doNothing().when(productService).deleteById(1);
 
-        mockMvc.perform(delete("/api/products/1"))
+        mockMvc.perform(delete("/api/v1/products/1"))
                 .andExpect(status().isNoContent());
     }
 }

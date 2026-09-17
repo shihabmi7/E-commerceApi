@@ -29,13 +29,13 @@ class AddressControllerTest {
     @MockBean JwtService jwtService;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
-    @Test void getAll() throws Exception { when(addressService.findAll()).thenReturn(List.of(new Address())); mockMvc.perform(get("/api/addresses")).andExpect(status().isOk()); }
-    @Test void getById() throws Exception { when(addressService.findById(1)).thenReturn(Optional.of(new Address())); mockMvc.perform(get("/api/addresses/1")).andExpect(status().isOk()); }
+    @Test void getAll() throws Exception { when(addressService.findAll()).thenReturn(List.of(new Address())); mockMvc.perform(get("/api/v1/addresses")).andExpect(status().isOk()); }
+    @Test void getById() throws Exception { when(addressService.findById(1)).thenReturn(Optional.of(new Address())); mockMvc.perform(get("/api/v1/addresses/1")).andExpect(status().isOk()); }
     @Test void create() throws Exception {
         User user = new User(); user.setId(1);
         Address a = new Address(1, user, "123 Main St", "Springfield", "IL", "USA", "62704");
         when(addressService.save(any())).thenReturn(a);
-        mockMvc.perform(post("/api/addresses").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(a))).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/addresses").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(a))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(addressService).deleteById(1); mockMvc.perform(delete("/api/addresses/1")).andExpect(status().isNoContent()); }
+    @Test void deleteById() throws Exception { doNothing().when(addressService).deleteById(1); mockMvc.perform(delete("/api/v1/addresses/1")).andExpect(status().isNoContent()); }
 }

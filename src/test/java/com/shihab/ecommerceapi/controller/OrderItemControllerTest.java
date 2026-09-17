@@ -30,14 +30,14 @@ class OrderItemControllerTest {
     @MockBean JwtService jwtService;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
-    @Test void getAll() throws Exception { when(orderItemService.findAll()).thenReturn(List.of(new OrderItem())); mockMvc.perform(get("/api/orderitems")).andExpect(status().isOk()); }
-    @Test void getById() throws Exception { when(orderItemService.findById(1)).thenReturn(Optional.of(new OrderItem())); mockMvc.perform(get("/api/orderitems/1")).andExpect(status().isOk()); }
+    @Test void getAll() throws Exception { when(orderItemService.findAll()).thenReturn(List.of(new OrderItem())); mockMvc.perform(get("/api/v1/orderitems")).andExpect(status().isOk()); }
+    @Test void getById() throws Exception { when(orderItemService.findById(1)).thenReturn(Optional.of(new OrderItem())); mockMvc.perform(get("/api/v1/orderitems/1")).andExpect(status().isOk()); }
     @Test void create() throws Exception {
         Order order = new Order(); order.setId(1);
         Product product = new Product(); product.setId(1);
         OrderItem oi = new OrderItem(1, order, product, 2, 50.0);
         when(orderItemService.save(any())).thenReturn(oi);
-        mockMvc.perform(post("/api/orderitems").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(oi))).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/orderitems").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(oi))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(orderItemService).deleteById(1); mockMvc.perform(delete("/api/orderitems/1")).andExpect(status().isNoContent()); }
+    @Test void deleteById() throws Exception { doNothing().when(orderItemService).deleteById(1); mockMvc.perform(delete("/api/v1/orderitems/1")).andExpect(status().isNoContent()); }
 }

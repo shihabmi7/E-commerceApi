@@ -33,7 +33,7 @@ class UserControllerTest {
     void getAll_returns200() throws Exception {
         User u = new User(1, "Alice", "alice@example.com", "password123", "123", User.Role.customer, null);
         when(userService.findAll()).thenReturn(List.of(u));
-        mockMvc.perform(get("/api/users"))
+        mockMvc.perform(get("/api/v1/users"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].email").value("alice@example.com"));
     }
@@ -42,20 +42,20 @@ class UserControllerTest {
     void getById_returns200_whenFound() throws Exception {
         User u = new User(1, "Alice", "alice@example.com", "password123", "123", User.Role.customer, null);
         when(userService.findById(1)).thenReturn(Optional.of(u));
-        mockMvc.perform(get("/api/users/1")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/users/1")).andExpect(status().isOk());
     }
 
     @Test
     void getById_returns404_whenNotFound() throws Exception {
         when(userService.findById(99)).thenReturn(Optional.empty());
-        mockMvc.perform(get("/api/users/99")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/users/99")).andExpect(status().isNotFound());
     }
 
     @Test
     void create_returns200() throws Exception {
         User u = new User(null, "Bob", "bob@example.com", "password123", "456", User.Role.customer, null);
         when(userService.save(any())).thenReturn(new User(2, "Bob", "bob@example.com", "password123", "456", User.Role.customer, null));
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(u)))
                 .andExpect(status().isCreated());
@@ -64,6 +64,6 @@ class UserControllerTest {
     @Test
     void delete_returns200() throws Exception {
         doNothing().when(userService).deleteById(1);
-        mockMvc.perform(delete("/api/users/1")).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/users/1")).andExpect(status().isNoContent());
     }
 }

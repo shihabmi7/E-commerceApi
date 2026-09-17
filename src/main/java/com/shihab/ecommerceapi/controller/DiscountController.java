@@ -14,7 +14,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/discounts")
+@RequestMapping("/api/v1/discounts")
 public class DiscountController {
 
     private final DiscountService discountService;

@@ -30,14 +30,14 @@ class WishlistControllerTest {
     @MockBean JwtService jwtService;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
-    @Test void getAll() throws Exception { when(wishlistService.findAll()).thenReturn(List.of(new Wishlist())); mockMvc.perform(get("/api/wishlists")).andExpect(status().isOk()); }
-    @Test void getById() throws Exception { when(wishlistService.findById(1)).thenReturn(Optional.of(new Wishlist())); mockMvc.perform(get("/api/wishlists/1")).andExpect(status().isOk()); }
+    @Test void getAll() throws Exception { when(wishlistService.findAll()).thenReturn(List.of(new Wishlist())); mockMvc.perform(get("/api/v1/wishlists")).andExpect(status().isOk()); }
+    @Test void getById() throws Exception { when(wishlistService.findById(1)).thenReturn(Optional.of(new Wishlist())); mockMvc.perform(get("/api/v1/wishlists/1")).andExpect(status().isOk()); }
     @Test void create() throws Exception {
         User user = new User(); user.setId(1);
         Product product = new Product(); product.setId(1);
         Wishlist w = new Wishlist(1, user, product);
         when(wishlistService.save(any())).thenReturn(w);
-        mockMvc.perform(post("/api/wishlists").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(w))).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/wishlists").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(w))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(wishlistService).deleteById(1); mockMvc.perform(delete("/api/wishlists/1")).andExpect(status().isNoContent()); }
+    @Test void deleteById() throws Exception { doNothing().when(wishlistService).deleteById(1); mockMvc.perform(delete("/api/v1/wishlists/1")).andExpect(status().isNoContent()); }
 }

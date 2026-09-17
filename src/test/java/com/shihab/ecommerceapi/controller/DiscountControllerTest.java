@@ -29,13 +29,13 @@ class DiscountControllerTest {
     @MockBean JwtService jwtService;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
-    @Test void getAll() throws Exception { when(discountService.findAll()).thenReturn(List.of(new Discount())); mockMvc.perform(get("/api/discounts")).andExpect(status().isOk()); }
-    @Test void getById() throws Exception { when(discountService.findById(1)).thenReturn(Optional.of(new Discount())); mockMvc.perform(get("/api/discounts/1")).andExpect(status().isOk()); }
+    @Test void getAll() throws Exception { when(discountService.findAll()).thenReturn(List.of(new Discount())); mockMvc.perform(get("/api/v1/discounts")).andExpect(status().isOk()); }
+    @Test void getById() throws Exception { when(discountService.findById(1)).thenReturn(Optional.of(new Discount())); mockMvc.perform(get("/api/v1/discounts/1")).andExpect(status().isOk()); }
     @Test void create() throws Exception {
         Product product = new Product(); product.setId(1);
         Discount d = new Discount(1, product, 15.0, null, null);
         when(discountService.save(any())).thenReturn(d);
-        mockMvc.perform(post("/api/discounts").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(d))).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/discounts").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(d))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(discountService).deleteById(1); mockMvc.perform(delete("/api/discounts/1")).andExpect(status().isNoContent()); }
+    @Test void deleteById() throws Exception { doNothing().when(discountService).deleteById(1); mockMvc.perform(delete("/api/v1/discounts/1")).andExpect(status().isNoContent()); }
 }

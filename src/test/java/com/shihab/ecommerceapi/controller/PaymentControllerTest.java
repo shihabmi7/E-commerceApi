@@ -29,13 +29,13 @@ class PaymentControllerTest {
     @MockBean JwtService jwtService;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
-    @Test void getAll() throws Exception { when(paymentService.findAll()).thenReturn(List.of(new Payment())); mockMvc.perform(get("/api/payments")).andExpect(status().isOk()); }
-    @Test void getById() throws Exception { when(paymentService.findById(1)).thenReturn(Optional.of(new Payment())); mockMvc.perform(get("/api/payments/1")).andExpect(status().isOk()); }
+    @Test void getAll() throws Exception { when(paymentService.findAll()).thenReturn(List.of(new Payment())); mockMvc.perform(get("/api/v1/payments")).andExpect(status().isOk()); }
+    @Test void getById() throws Exception { when(paymentService.findById(1)).thenReturn(Optional.of(new Payment())); mockMvc.perform(get("/api/v1/payments/1")).andExpect(status().isOk()); }
     @Test void create() throws Exception {
         Order order = new Order(); order.setId(1);
         Payment p = new Payment(1, order, "credit_card", Payment.PaymentStatus.pending, null);
         when(paymentService.save(any())).thenReturn(p);
-        mockMvc.perform(post("/api/payments").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(p))).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/payments").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(p))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(paymentService).deleteById(1); mockMvc.perform(delete("/api/payments/1")).andExpect(status().isNoContent()); }
+    @Test void deleteById() throws Exception { doNothing().when(paymentService).deleteById(1); mockMvc.perform(delete("/api/v1/payments/1")).andExpect(status().isNoContent()); }
 }
