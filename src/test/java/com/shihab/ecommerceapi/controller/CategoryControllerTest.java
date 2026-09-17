@@ -34,7 +34,7 @@ class CategoryControllerTest {
     void getAll_returns200() throws Exception {
         Category c = new Category(1, "Electronics", "All electronics");
         when(categoryService.findAll()).thenReturn(List.of(c));
-        mockMvc.perform(get("/api/categories"))
+        mockMvc.perform(get("/api/v1/categories"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].name").value("Electronics"));
     }
@@ -43,7 +43,7 @@ class CategoryControllerTest {
     void getById_returnsCategory_whenFound() throws Exception {
         Category c = new Category(1, "Books", "All books");
         when(categoryService.findById(1)).thenReturn(Optional.of(c));
-        mockMvc.perform(get("/api/categories/1"))
+        mockMvc.perform(get("/api/v1/categories/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("Books"));
     }
@@ -51,7 +51,7 @@ class CategoryControllerTest {
     @Test
     void getById_returns404_whenNotFound() throws Exception {
         when(categoryService.findById(99)).thenReturn(Optional.empty());
-        mockMvc.perform(get("/api/categories/99"))
+        mockMvc.perform(get("/api/v1/categories/99"))
                 .andExpect(status().isNotFound());
     }
 
@@ -59,7 +59,7 @@ class CategoryControllerTest {
     void create_returns200() throws Exception {
         Category c = new Category(null, "Toys", "All toys");
         when(categoryService.save(any())).thenReturn(new Category(3, "Toys", "All toys"));
-        mockMvc.perform(post("/api/categories")
+        mockMvc.perform(post("/api/v1/categories")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(c)))
                 .andExpect(status().isCreated())
@@ -69,6 +69,6 @@ class CategoryControllerTest {
     @Test
     void delete_returns200() throws Exception {
         doNothing().when(categoryService).deleteById(1);
-        mockMvc.perform(delete("/api/categories/1")).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/categories/1")).andExpect(status().isNoContent());
     }
 }

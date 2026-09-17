@@ -14,7 +14,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/wishlists")
+@RequestMapping("/api/v1/wishlists")
 public class WishlistController {
 
     private final WishlistService wishlistService;

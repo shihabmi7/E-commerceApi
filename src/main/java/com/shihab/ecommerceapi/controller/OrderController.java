@@ -15,7 +15,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/api/v1/orders")
 public class OrderController {
 
     private final OrderService orderService;
@@ -67,7 +67,7 @@ public class OrderController {
     public ResponseEntity<CustomResponse<Order>> placeOrder(@Valid @RequestBody PlaceOrderRequest req) {
         Order placed = orderService.placeOrder(req);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
-                .replacePath("/api/orders/{id}")
+                .replacePath("/api/v1/orders/{id}")
                 .buildAndExpand(placed.getId())
                 .toUri();
         return ResponseEntity.created(location)

@@ -35,19 +35,19 @@ class OrderControllerTest {
     @Test
     void getAll_returns200() throws Exception {
         when(orderService.findAll()).thenReturn(List.of(new Order()));
-        mockMvc.perform(get("/api/orders")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/orders")).andExpect(status().isOk());
     }
 
     @Test
     void getById_returns200() throws Exception {
         when(orderService.findById(1)).thenReturn(Optional.of(new Order()));
-        mockMvc.perform(get("/api/orders/1")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/orders/1")).andExpect(status().isOk());
     }
 
     @Test
     void getById_returns404_whenNotFound() throws Exception {
         when(orderService.findById(99)).thenReturn(Optional.empty());
-        mockMvc.perform(get("/api/orders/99")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/orders/99")).andExpect(status().isNotFound());
     }
 
     @Test
@@ -56,7 +56,7 @@ class OrderControllerTest {
         Address address = new Address(); address.setId(1);
         Order order = new Order(null, user, address, 100.0, Order.Status.pending, null);
         when(orderService.save(any())).thenReturn(order);
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(order)))
                 .andExpect(status().isCreated());
@@ -68,7 +68,7 @@ class OrderControllerTest {
         Order placed = new Order();
         placed.setId(1);
         when(orderService.placeOrder(any())).thenReturn(placed);
-        mockMvc.perform(post("/api/orders/place")
+        mockMvc.perform(post("/api/v1/orders/place")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
@@ -77,6 +77,6 @@ class OrderControllerTest {
     @Test
     void delete_returns200() throws Exception {
         doNothing().when(orderService).deleteById(1);
-        mockMvc.perform(delete("/api/orders/1")).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/orders/1")).andExpect(status().isNoContent());
     }
 }

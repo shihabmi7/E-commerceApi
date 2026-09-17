@@ -30,14 +30,14 @@ class ShippingControllerTest {
     @MockBean JwtService jwtService;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
-    @Test void getAll() throws Exception { when(shippingService.findAll()).thenReturn(List.of(new Shipping())); mockMvc.perform(get("/api/shippings")).andExpect(status().isOk()); }
-    @Test void getById() throws Exception { when(shippingService.findById(1)).thenReturn(Optional.of(new Shipping())); mockMvc.perform(get("/api/shippings/1")).andExpect(status().isOk()); }
+    @Test void getAll() throws Exception { when(shippingService.findAll()).thenReturn(List.of(new Shipping())); mockMvc.perform(get("/api/v1/shippings")).andExpect(status().isOk()); }
+    @Test void getById() throws Exception { when(shippingService.findById(1)).thenReturn(Optional.of(new Shipping())); mockMvc.perform(get("/api/v1/shippings/1")).andExpect(status().isOk()); }
     @Test void create() throws Exception {
         Order order = new Order(); order.setId(1);
         Address address = new Address(); address.setId(1);
         Shipping s = new Shipping(1, order, address, null, null, null);
         when(shippingService.save(any())).thenReturn(s);
-        mockMvc.perform(post("/api/shippings").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(s))).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/shippings").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(s))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(shippingService).deleteById(1); mockMvc.perform(delete("/api/shippings/1")).andExpect(status().isNoContent()); }
+    @Test void deleteById() throws Exception { doNothing().when(shippingService).deleteById(1); mockMvc.perform(delete("/api/v1/shippings/1")).andExpect(status().isNoContent()); }
 }

@@ -29,13 +29,13 @@ class ProductImageControllerTest {
     @MockBean JwtService jwtService;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
-    @Test void getAll() throws Exception { when(productImageService.findAll()).thenReturn(List.of(new ProductImage())); mockMvc.perform(get("/api/productimages")).andExpect(status().isOk()); }
-    @Test void getById() throws Exception { when(productImageService.findById(1)).thenReturn(Optional.of(new ProductImage())); mockMvc.perform(get("/api/productimages/1")).andExpect(status().isOk()); }
+    @Test void getAll() throws Exception { when(productImageService.findAll()).thenReturn(List.of(new ProductImage())); mockMvc.perform(get("/api/v1/productimages")).andExpect(status().isOk()); }
+    @Test void getById() throws Exception { when(productImageService.findById(1)).thenReturn(Optional.of(new ProductImage())); mockMvc.perform(get("/api/v1/productimages/1")).andExpect(status().isOk()); }
     @Test void create() throws Exception {
         Product product = new Product(); product.setId(1);
         ProductImage pi = new ProductImage(1, "https://example.com/image.jpg", product);
         when(productImageService.save(any())).thenReturn(pi);
-        mockMvc.perform(post("/api/productimages").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(pi))).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/productimages").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(pi))).andExpect(status().isCreated());
     }
-    @Test void deleteById() throws Exception { doNothing().when(productImageService).deleteById(1); mockMvc.perform(delete("/api/productimages/1")).andExpect(status().isNoContent()); }
+    @Test void deleteById() throws Exception { doNothing().when(productImageService).deleteById(1); mockMvc.perform(delete("/api/v1/productimages/1")).andExpect(status().isNoContent()); }
 }

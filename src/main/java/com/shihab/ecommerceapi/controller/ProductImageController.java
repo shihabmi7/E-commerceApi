@@ -14,7 +14,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/productimages")
+@RequestMapping("/api/v1/productimages")
 public class ProductImageController {
 
     private final ProductImageService productimageService;
