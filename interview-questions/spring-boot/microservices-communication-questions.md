@@ -112,6 +112,8 @@ public PaymentDTO getPayment(Long orderId) { return paymentClient.getPayment(ord
 ```
 Retries only make sense paired with a sensible **timeout** — without one, a single slow call to C can hang B far longer than expected, and B retrying a request that's still technically in flight risks duplicate processing (see Q16 on idempotency). Retries are usually combined with **exponential backoff** (wait longer between each attempt) so a struggling service isn't immediately hit with a second wave of retries on top of the first failure.
 
+**Resilience4j specifics:** `@Retry` defaults to 3 attempts with a 500ms wait; turn on `enableExponentialBackoff` for growing delays. Retry only at one layer of a call chain: if a gateway, `Order` and `Payment` each retry 3 times, one user request can become 27 calls to the failing bank API. See the expert doc, Q3, for how `@Retry` stacks with `@CircuitBreaker`.
+
 ## 16. Why does idempotency matter when B retries a failed call to C?
 If B calls C, the request actually succeeds on C's end, but the *response* to B is lost (timeout, network blip) — B doesn't know it succeeded, and retries. If "create a payment" isn't idempotent, that retry creates a **second** payment. Making an endpoint idempotent (e.g. requiring an `Idempotency-Key` header, or designing "create payment for order X" so calling it twice for the same order X is a no-op the second time) means B's retry is always safe, regardless of whether the original call actually got through.
 
@@ -121,9 +123,15 @@ If B calls C with no timeout configured and C hangs (not down, just very slow), 
 ## 18. What's the bulkhead pattern, and how does it relate to Q17?
 Named after ship bulkheads (compartments that stop one flooded section from sinking the whole ship): isolate the resources (usually thread pool/connection limit) used for calling one downstream service from the resources used for everything else.
 ```java
-@Bulkhead(name = "paymentService", type = Bulkhead.Type.THREADPOOL)
+// SEMAPHORE (the default): caps concurrent calls, runs on the caller's own thread
+@Bulkhead(name = "paymentService")
 public PaymentDTO getPayment(Long orderId) { ... }
+
+// THREADPOOL: runs on a dedicated pool, so the method must return CompletableFuture
+@Bulkhead(name = "paymentService", type = Bulkhead.Type.THREADPOOL)
+public CompletableFuture<PaymentDTO> getPaymentAsync(Long orderId) { ... }
 ```
+Resilience4j has two bulkhead types. The **semaphore** type limits how many calls may be in flight at once (`maxConcurrentCalls`); when the limit is reached, further calls fail with `BulkheadFullException` after `maxWaitDuration` (default 0, so immediately). The **thread-pool** type also isolates the work onto its own threads, which is why the method has to return a `CompletableFuture`.
 If C is slow and its calls exhaust *their own* dedicated thread pool, B's other functionality (calls to other services, or requests that don't touch C at all) keeps working normally — the damage from Q17 stays contained to just the C-related calls instead of spreading to all of B.
 
 ## 19. Orchestration vs. choreography — the short version
