@@ -240,6 +240,8 @@ Here's what each ACID property guarantees about this exact transaction:
 
 - **Durability** — once `COMMIT` returns successfully, the transfer is permanent. Even if the database server loses power one second later, the updated balances survive (typically because the change was already written to a transaction log on disk before the commit was acknowledged).
 
+**Who actually gives the ACID guarantee?** The **database engine itself** (Postgres, MySQL, etc.) — never the application framework. A framework annotation like Spring's `@Transactional` doesn't add ACID behavior; it just marks where a transaction starts/commits/rolls back and hands control to the DB driver, which then calls `BEGIN`/`COMMIT`/`ROLLBACK` on the real database. The atomicity, consistency enforcement, isolation, and durability all happen inside the DB engine — the application layer is only a caller.
+
 ## 10. What are the transaction isolation levels?
 Read Uncommitted, Read Committed, Repeatable Read, Serializable — each trades off consistency guarantees against concurrency/performance. Higher isolation prevents more anomalies (dirty reads, non-repeatable reads, phantom reads) but reduces concurrency.
 
@@ -257,6 +259,15 @@ SELECT balance FROM accounts WHERE account_id = 'A';
 - Under `READ UNCOMMITTED`, Transaction 2 sees $400 — a **dirty read**. If Transaction 1 then rolls back, the app just showed the customer money that never actually left their account.
 - Under `READ COMMITTED` (the common default, e.g. in PostgreSQL/SQL Server), Transaction 2 sees the last committed value, $500, until Transaction 1 actually commits.
 - Under `SERIALIZABLE`, the database behaves as if Transaction 1 and Transaction 2 ran one after another, fully preventing any overlap-related anomaly, at the cost of more blocking/retries under load.
+
+In Spring, the isolation level is set per method via `@Transactional(isolation = ...)`:
+```java
+@Transactional(isolation = Isolation.SERIALIZABLE)
+public void criticalOperation() {
+    // ...
+}
+```
+`Isolation.DEFAULT` (the default when omitted) just uses whatever the underlying database's own default is — `READ COMMITTED` for PostgreSQL/SQL Server, `REPEATABLE READ` for MySQL/InnoDB.
 
 ## 11. What is a deadlock? How can it be avoided?
 Two or more transactions waiting on locks held by each other, none able to proceed. Avoided by acquiring locks in a consistent order, keeping transactions short, and using timeouts/deadlock detection.
