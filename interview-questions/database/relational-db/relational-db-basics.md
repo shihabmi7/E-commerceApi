@@ -618,3 +618,141 @@ CREATE TABLE accounts (
 ```
 
 Try `INSERT INTO accounts (account_id, account_number, customer_id, balance) VALUES (1, 'ACC-001', 999, -50)` where customer `999` doesn't exist and the balance is negative — the database rejects it outright on both the foreign key and the check constraint, before it ever becomes an application bug.
+
+## 21. What's the difference between a primary key and a unique key?
+Both enforce uniqueness across a column (or set of columns), but a table can have only **one** primary key and **multiple** unique keys, and a primary key column cannot be `NULL` while a unique key column can (most databases allow multiple `NULL`s in a unique column, since `NULL` is never considered equal to another `NULL`).
+
+**Real-life scenario:** the `accounts` table.
+
+```sql
+CREATE TABLE accounts (
+    account_id     BIGINT PRIMARY KEY,        -- the identity of the row; never null, only one per table
+    account_number VARCHAR(20) UNIQUE,        -- must be unique, but could theoretically be left null for a draft row
+    ssn            VARCHAR(11) UNIQUE         -- a second, independent uniqueness rule on the same table
+);
+```
+
+`account_id` is what every foreign key elsewhere in the schema points to — it's the row's identity. `account_number` and `ssn` are both "must be unique" but neither is *the* identity; a table can carry as many of these side uniqueness rules as it needs, but only one primary key.
+
+## 22. What are window functions? How do they differ from GROUP BY?
+A window function (`OVER (...)`) computes a value across a set of related rows **without collapsing them into one row per group**, unlike `GROUP BY`/aggregate functions which return one row per group. Each input row keeps its own row in the output, with the computed value attached.
+
+**Real-life scenario:** rank each customer's transactions by amount, without losing the individual transaction rows (a `GROUP BY` here would only give you one row per customer, not per transaction).
+
+```sql
+SELECT
+    customer_id,
+    transaction_id,
+    amount,
+    RANK() OVER (PARTITION BY customer_id ORDER BY amount DESC) AS rank_within_customer
+FROM transactions;
+```
+
+`PARTITION BY customer_id` resets the ranking for each customer (like a `GROUP BY` boundary), and `ORDER BY amount DESC` decides the rank within that partition — but every transaction row is still present in the result, each carrying its own rank. Common window functions: `ROW_NUMBER()` (always unique, 1,2,3...), `RANK()` (ties share a rank, next rank skips), `DENSE_RANK()` (ties share a rank, next rank doesn't skip), `LAG()`/`LEAD()` (read a previous/next row's value without a self-join).
+
+## 23. What is a CTE (Common Table Expression)?
+A named, temporary result set defined with `WITH ... AS (...)` and used within the query that follows it — a way to break a complex query into readable, named steps instead of nesting subqueries.
+
+**Real-life scenario:** find customers whose total balance across all their accounts exceeds $50,000.
+
+```sql
+WITH customer_totals AS (
+    SELECT customer_id, SUM(balance) AS total_balance
+    FROM accounts
+    GROUP BY customer_id
+)
+SELECT c.customer_name, ct.total_balance
+FROM customer_totals ct
+JOIN customers c ON c.customer_id = ct.customer_id
+WHERE ct.total_balance > 50000;
+```
+
+Without the CTE, this would either need a subquery in the `FROM` clause (harder to read once you have more than one step) or computing the sum twice. A CTE also supports **recursion** (`WITH RECURSIVE`), which is how you walk a hierarchy in SQL — e.g. an `employees(id, manager_id)` table, finding everyone under a given manager, several levels deep, without knowing the depth in advance.
+
+## 24. What's the difference between EXISTS and IN?
+Both check membership, but `EXISTS` stops as soon as it finds one matching row (a boolean check), while `IN` builds/compares against the full list of values the subquery returns. For large subquery results, `EXISTS` is usually faster; more importantly, they behave **differently with `NULL`**.
+
+**Real-life scenario:** find customers who have at least one transaction over $10,000.
+
+```sql
+-- EXISTS: stops at the first match per customer
+SELECT customer_name FROM customers c
+WHERE EXISTS (
+    SELECT 1 FROM transactions t
+    WHERE t.customer_id = c.customer_id AND t.amount > 10000
+);
+
+-- IN: builds the full list of matching customer_ids first, then checks membership
+SELECT customer_name FROM customers c
+WHERE c.customer_id IN (
+    SELECT customer_id FROM transactions WHERE amount > 10000
+);
+```
+
+**The NULL gotcha:** `NOT IN` silently returns **zero rows** if the subquery's result contains even a single `NULL` — `x NOT IN (1, 2, NULL)` is neither true nor false for any `x`, it's `UNKNOWN`, and `UNKNOWN` rows are filtered out. `NOT EXISTS` doesn't have this trap, since it's just checking "did any row match," not comparing against a list that might contain `NULL`. This is a classic interview/production gotcha: prefer `NOT EXISTS` over `NOT IN` whenever the subquery's column can be `NULL`.
+
+## 25. What do ON DELETE CASCADE / SET NULL / RESTRICT mean on a foreign key?
+They tell the database what to do to the **child** rows when the **parent** row they reference is deleted (or updated). Without one specified, most databases default to `RESTRICT`/`NO ACTION` — the delete is simply rejected if children still reference it.
+
+**Real-life scenario:** what happens to a customer's `Cart` rows if the customer account is deleted.
+
+```sql
+-- RESTRICT (default): deleting the customer fails if any cart rows reference them
+customer_id BIGINT REFERENCES customers(customer_id)
+
+-- CASCADE: deleting the customer automatically deletes their cart rows too
+customer_id BIGINT REFERENCES customers(customer_id) ON DELETE CASCADE
+
+-- SET NULL: deleting the customer leaves the cart row, but blanks out customer_id
+customer_id BIGINT REFERENCES customers(customer_id) ON DELETE SET NULL
+```
+
+`CASCADE` is convenient but dangerous if applied carelessly — a single delete can silently ripple through many tables. `SET NULL` requires the column to be nullable and is useful when the child record should survive on its own (e.g. an audit log shouldn't vanish just because the actor was deleted). `RESTRICT` is the safest default: it forces you to explicitly decide, rather than losing data by accident. In this repo, `Cart.user`/`Cart.product` (see [Cart.java](../../../src/main/java/com/shihab/ecommerceapi/model/Cart.java)) don't set a cascade behavior, so the database default (reject the delete) applies.
+
+## 26. What is connection pooling, and why does it matter?
+Opening a new database connection (TCP handshake, auth, session setup) is expensive — tens of milliseconds. A connection pool keeps a set of already-open connections ready to reuse, so a request borrows one, uses it, and returns it instead of opening/closing a connection per request.
+
+**Real-life scenario:** this repo's own default setup — Spring Boot auto-configures **HikariCP**, with a default `maximum-pool-size` of 10, and `spring.datasource.*` in `application.properties` pointing at Postgres. No explicit Hikari tuning is set, so the default of 10 connections per app instance applies.
+
+```properties
+# would go in application.properties if you wanted to override the default
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=10
+```
+
+The pool size matters more once you scale horizontally: if Postgres allows `max_connections=100` and this app scales to 8 pods, each holding its own pool of 10, that's `8 x 10 = 80` connections — still under the limit, but close, and it leaves little headroom for admin/other clients. A bigger pool per pod isn't automatically "faster" either — past a point, more concurrent connections just means more contention inside the database itself; a smaller, well-sized pool per pod, kept under the DB's real ceiling, usually performs as well or better than a larger one.
+
+## 27. What's the difference between OLTP and OLAP?
+**OLTP** (Online Transaction Processing) is optimized for many small, fast read/write transactions — the typical application database (place an order, update a cart, look up one customer). **OLAP** (Online Analytical Processing) is optimized for large, complex read-heavy queries over huge volumes of historical data (aggregations, trends, reports across millions of rows).
+
+**Real-life scenario:** this e-commerce app's own database is OLTP — `CartController.addToCart`, `ProductController.getById` are all quick, targeted reads/writes on current data. A separate analytics question like "total revenue by category, by month, for the last 3 years" is an OLAP-shaped query: it scans huge amounts of historical data and does heavy aggregation, which would compete with and slow down the live OLTP traffic if run against the same database.
+
+| | OLTP | OLAP |
+|---|---|---|
+| Query shape | Short, targeted (`WHERE id = ?`) | Broad, aggregated (`GROUP BY`, `SUM`, date ranges) |
+| Data | Current, normalized | Historical, often denormalized (star schema) |
+| Optimized for | Write throughput, low latency per request | Read throughput over large scans |
+| Example | This project's Postgres DB | A data warehouse (Snowflake, Redshift, BigQuery) |
+
+This is exactly why heavy reporting queries are usually run against a **replica** or a separate data warehouse, not the primary OLTP database — see Q28.
+
+## 28. Sharding vs. partitioning vs. replication — what's the difference?
+All three are ways to scale a database beyond one machine, but they solve different problems.
+
+- **Partitioning** — splitting **one large table** into smaller physical pieces (by range, list, or hash of a column), usually still on **one** database server. Queries that target the partition key only touch the relevant piece instead of the whole table. Solves "this one table is too big to scan efficiently."
+- **Sharding** — splitting a table's rows **across multiple separate database servers** (each shard holds a different subset of rows, e.g. by customer ID range). Solves "this one server can't hold/serve all the data or traffic," at the cost of cross-shard queries and joins becoming much harder.
+- **Replication** — copying the **same data** to multiple servers (a primary that accepts writes, and one or more replicas that stay in sync and serve reads). Solves "one server can't handle all the read traffic" and "I need a hot standby if the primary fails" — every replica has the full dataset, unlike a shard.
+
+```sql
+-- Partitioning example (Postgres): one logical table, physically split by date range
+CREATE TABLE transactions (
+    transaction_id BIGINT,
+    transaction_date DATE,
+    amount DECIMAL(12,2)
+) PARTITION BY RANGE (transaction_date);
+
+CREATE TABLE transactions_2026 PARTITION OF transactions
+    FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+```
+
+A common real-world combination: replicate for read scaling and failover, partition the biggest tables for query performance, and only reach for sharding once a single server genuinely can't hold the data or absorb the write load anymore — sharding is the most operationally complex of the three, so it's usually the last resort, not the first choice.
