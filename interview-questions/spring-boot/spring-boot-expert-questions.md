@@ -35,6 +35,33 @@ public EmployeeDTO fallback(Long id, Throwable t) { return EmployeeDTO.unknown(i
 ```
 States: **closed** (normal) → **open** (failures exceed threshold, fail fast, no network call) → **half-open** (test a few calls) → closed or open again. Often paired with `@Retry` and `@Bulkhead` (limits concurrent calls).
 
+### Resilience4j at a glance
+**Setup (Boot 3):** `io.github.resilience4j:resilience4j-spring-boot3` plus `spring-boot-starter-aop` (the annotations work through Spring AOP proxies). Configure each named instance under `resilience4j.<module>.instances.<name>` in `application.yml`.
+
+**Modules:** `CircuitBreaker`, `Retry`, `Bulkhead`, `TimeLimiter`, `RateLimiter`, `Cache`.
+
+| Module | Protects against | Key settings |
+|---|---|---|
+| CircuitBreaker | A dependency that keeps failing or is very slow | `slidingWindowSize`, `minimumNumberOfCalls`, `failureRateThreshold`, `waitDurationInOpenState`, `permittedNumberOfCallsInHalfOpenState` |
+| Retry | Short transient failures | `maxAttempts` (default 3), `waitDuration` (default 500ms), `enableExponentialBackoff` |
+| Bulkhead | One slow dependency eating all your threads | `maxConcurrentCalls`, `maxWaitDuration` (default 0) |
+| TimeLimiter | A call that hangs (needs an async return type such as `CompletableFuture`) | `timeoutDuration` |
+| RateLimiter | Calling a dependency (or being called) too often | `limitForPeriod`, `limitRefreshPeriod` |
+
+**How the circuit breaker moves:** it opens when the failure rate over the sliding window reaches the threshold (after `minimumNumberOfCalls`). After `waitDurationInOpenState` it goes to half-open on the next call (unless `automaticTransitionFromOpenToHalfOpenEnabled=true`), admits only `permittedNumberOfCallsInHalfOpenState` trial calls, then closes if their failure rate is under the threshold, or reopens.
+
+**Fallback rules:** the fallback method must return the same type, take the same parameters, and accept the exception as an extra last parameter. Several fallbacks can be declared for different exception types.
+
+**Stacking order** when several annotations are on one method: `Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( method ) ) ) ) )`. Retry is outermost, so each retry attempt counts as a separate call to the breaker.
+
+**Gotchas:**
+- **Self-invocation bypasses the proxy.** Calling the annotated method from another method in the same class runs it without any protection (same proxy pitfall as `@Transactional`).
+- **Retries multiply across layers.** Three layers with 3 attempts each can send 27 calls to a struggling dependency. Retry at one layer, with backoff and jitter, inside the overall deadline.
+- **Only retry idempotent calls**, or pair the retry with an idempotency key (see microservices Q16).
+- **An open breaker throws `CallNotPermittedException`.** Map it to `503 Service Unavailable` in the `@RestControllerAdvice`; otherwise a catch-all `@ExceptionHandler(Exception.class)` (as in this repo's `GlobalExceptionHandler`) turns it into a `500`.
+
+**In this repo:** Resilience4j is not used yet, because everything is one monolith with local calls. It becomes relevant when `Order` calls a separate `Payment` or `Catalog` service, or when calling an external API.
+
 ## 4. How does distributed tracing work across microservices?
 A **trace ID** (whole request) + **span ID** (per hop) propagate via headers across services, so logs/spans correlate into one timeline. Micrometer Tracing auto-instruments HTTP/DB calls, exports to Zipkin/Jaeger — no manual span code needed for the common case. It's the tool for "why is this one request slow" when logs alone can't reconstruct the call graph.
 

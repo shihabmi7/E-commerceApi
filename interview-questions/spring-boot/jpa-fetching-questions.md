@@ -62,6 +62,22 @@ Optional<Cart> findByUserIdAndProductId(Integer userId, Integer productId);
 
 `@EntityGraph` tells Hibernate to fetch `user`/`product` in the *same* SQL query as `Cart` (one JOIN), only for the methods that declare it — not for every load of a `Cart` everywhere in the app.
 
+The equivalent can also be written explicitly as JPQL with `JOIN FETCH`, which does the same thing — one query, one JOIN — but the fetch is spelled out in the query itself instead of derived from an attribute-path list:
+
+```java
+// CartRepository.java
+@Query("SELECT c FROM Cart c JOIN FETCH c.user JOIN FETCH c.product WHERE c.userId = :userId")
+List<Cart> findByUserId(@Param("userId") Integer userId);
+
+@Query("SELECT c FROM Cart c JOIN FETCH c.user JOIN FETCH c.product WHERE c.userId = :userId AND c.product.id = :productId")
+Optional<Cart> findByUserIdAndProductId(@Param("userId") Integer userId, @Param("productId") Integer productId);
+```
+
+`@EntityGraph` vs `JOIN FETCH`:
+- `@EntityGraph` keeps the derived query method (`findByUserId`) as-is and just layers the fetch plan on top — less code, and it composes cleanly with Spring Data's method-name derivation.
+- `JOIN FETCH` requires writing the full JPQL by hand, but it's more explicit and is the only option once the query needs custom conditions, joins, or projections that method-name derivation can't express.
+- Both compile to essentially the same SQL (a single `SELECT ... JOIN ... JOIN ...`) — pick one per query based on whether a derived method name is still enough to express it.
+
 ## 5. Do you need `@EntityGraph` every time you use `LAZY`?
 No. `LAZY` alone is a complete, valid setup — it just means "don't load until asked." You only need `@EntityGraph`/`JOIN FETCH` when **both** are true:
 1. You know the caller will access the lazy field, **and**
@@ -71,7 +87,7 @@ No. `LAZY` alone is a complete, valid setup — it just means "don't load until 
 It controls how long the Hibernate session stays open during a web request.
 
 - **`true`** (Spring Boot's actual factory default): the session stays open through the whole request, including the controller and JSON serialization. Lazy fields "just work" wherever you touch them — but that hides N+1 queries instead of preventing them, and it holds a DB connection for the entire request (risky for connection-pool exhaustion under load). Considered an anti-pattern by most teams for that reason.
-- **`false`** (what this project uses — see `application.properties` and `application-test.properties`): the session closes as soon as the `@Transactional` repository/service method returns, *before* the controller builds its response. Safer for connection pooling, but touching a lazy field afterward throws `LazyInitializationException` immediately instead of silently querying again.
+- **`false`** (what this project uses — see `application.properties` and `application-test.properties`): the session closes as soon as the transaction backing it returns — whether that's a `@Transactional` service method, or, as in `CartService.addToCart` (deliberately *not* `@Transactional`, see Q7), each individual Spring Data repository call running in its own auto-transaction. Either way the session is gone *before* the controller builds its response. Safer for connection pooling, but touching a lazy field afterward throws `LazyInitializationException` immediately instead of silently querying again.
 
 Because this repo has `open-in-view=false`, simply marking `Cart.product` as `LAZY` without `@EntityGraph` would have broken `CartController.getCart` and `addToCart` — both read `cart.getProduct()`/`getUser()` after the repository call returns, once the session is already closed. The `@EntityGraph` forces that data to be loaded *while the session is still open*, so it's safe to read afterward.
 
