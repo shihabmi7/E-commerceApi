@@ -137,5 +137,29 @@ If C is slow and its calls exhaust *their own* dedicated thread pool, B's other 
 ## 19. Orchestration vs. choreography — the short version
 Two ways to coordinate multiple services for one business process. **Orchestration**: a central coordinator explicitly calls each service in sequence and decides what happens next (closer to how A calling B calling C works — someone is directing traffic). **Choreography**: no coordinator — each service reacts to events from the previous one and publishes its own event, and the overall flow emerges from everyone just doing their part (closer to the async event-chain style from Q4/Q14). Orchestration is easier to reason about/debug (one place shows the whole flow); choreography scales better and avoids a single coordinator becoming a bottleneck or single point of failure, at the cost of the overall flow being harder to see in one place.
 
+**বাংলায় — এটা কি Saga pattern?** হ্যাঁ, সরাসরি সম্পর্কিত — Orchestration আর Choreography হলো Saga pattern বাস্তবায়নের দুইটা আলাদা "স্টাইল", Saga-র বিকল্প কিছু না। Saga (spring-boot-expert Q7) মানে: প্রতিটা step একটা local transaction, কোনো step fail করলে compensating transaction দিয়ে আগের step গুলো undo করা হয়। পার্থক্যটা শুধু — **"কে ঠিক করে দেয় পরের কাজটা কী"**:
+
+```
+Saga pattern = "প্রতিটা step local transaction, fail করলে compensate করে undo করা"
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+      Orchestration style          Choreography style
+```
+
+- **Orchestration** — একটা central coordinator সরাসরি প্রতিটা service-কে call করে, ক্রমানুসারে, আর সিদ্ধান্ত নেয় পরে কী হবে:
+  ```
+  Orchestrator ──► Order service (create order)
+               ──► Payment service (charge)
+               ──► Inventory service (reserve stock)
+  ```
+- **Choreography** — কোনো central coordinator নেই। প্রতিটা service নিজের কাজ শেষ করে একটা event publish করে, পরের service সেই event শুনে নিজের কাজ করে:
+  ```
+  Order service ──event: OrderPlaced──► Payment service
+  Payment service ──event: PaymentDone──► Inventory service
+  ```
+
+**সহজ মনে রাখার নিয়ম:** Saga হলো "ব্যাপারটা" (local transaction + compensation দিয়ে distributed transaction সামলানো), আর orchestration/choreography হলো "কীভাবে" সেটা বাস্তবায়ন করবে — একটা central বস দিয়ে (orchestration), নাকি সবাই মিলে event শুনে নিজে নিজে (choreography)।
+
 ## 20. What is contract testing, and why does it matter between A, B, and C?
 A way to verify that B's API still matches what A *expects* it to look like, without spinning up all three services together for every test. A defines a "contract" (example request/response pairs) against B's API; that contract is checked both from A's side (does A handle this shape correctly) and B's side (does B's real API actually still produce this shape) — commonly done with a tool like **Pact**. This catches "B changed a field name and broke A" *before* it reaches a shared staging environment, which matters more as the number of services (and teams owning them) grows — nobody wants to manually re-test every A→B→C combination after every deploy.
