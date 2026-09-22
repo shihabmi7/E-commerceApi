@@ -272,6 +272,8 @@ public void criticalOperation() {
 ## 11. What is a deadlock? How can it be avoided?
 Two or more transactions waiting on locks held by each other, none able to proceed. Avoided by acquiring locks in a consistent order, keeping transactions short, and using timeouts/deadlock detection.
 
+**বাংলায়:** Deadlock হলো — দুই (বা বেশি) transaction একে অপরের জন্য আটকে বসে থাকে, কারণ প্রত্যেকে একটা row lock করে রেখেছে যেটা অন্যজনের দরকার (নিচের উদাহরণে A ধরে B চাইছে, B ধরে A চাইছে — কেউ এগোতে পারছে না)। DB নিজে থেকে এই চক্র (cycle) ধরে ফেলে এবং একটাকে rollback করে দেয় — এটা **recovery**, prevention না। আসল avoid করার উপায় হলো **consistent lock ordering** (নিচে কোড দেখো): সবসময় ছোট ID আগে lock করো, তাহলে cycle-ই তৈরি হবে না।
+
 **Real-life scenario:** two transfers happen at the same time in opposite directions.
 
 ```sql
@@ -290,8 +292,36 @@ UPDATE accounts SET balance = balance + 30 WHERE account_id = 'A'; -- waits, A i
 
 Transaction 1 holds A and waits for B; Transaction 2 holds B and waits for A — neither can finish. The database detects this and kills one transaction (rolling it back with a deadlock error) so the other can proceed. This is exactly why the "acquire locks in a consistent order" fix matters in practice: if every transfer always locked the lower account ID first, both transactions would queue for A first instead of deadlocking on each other.
 
+**How to actually avoid it — consistent lock ordering in code:** always lock rows in the same fixed order (e.g. by primary key), regardless of the order the caller passed the IDs in:
+```java
+@Transactional
+public void transfer(Long fromId, Long toId, BigDecimal amount) {
+    Long firstId  = fromId < toId ? fromId : toId;   // always lock the smaller id first
+    Long secondId = fromId < toId ? toId : fromId;
+
+    Account first  = accountRepository.findByIdForUpdate(firstId);
+    Account second = accountRepository.findByIdForUpdate(secondId);
+    // ...apply the debit/credit to whichever of first/second is `from`/`to`...
+}
+```
+Both `transfer(A, B, ...)` and `transfer(B, A, ...)` now lock `A` first — no cycle can form, so it doesn't just get caught and rolled back, it never happens.
+
+**Which databases detect/recover from it:** all major RDBMS do — it isn't a premium feature.
+| DB | How |
+|---|---|
+| **PostgreSQL** (this repo's DB) | Background check every `deadlock_timeout` (default 1s); kills one transaction, error `deadlock detected` (SQLSTATE `40P01`) |
+| **MySQL/InnoDB** | Real-time wait-graph tracking; rolls back the cheapest transaction to undo |
+| **SQL Server** | "Deadlock monitor" thread (~every 5s); picks a lowest-cost "victim" |
+| **Oracle** | Real-time detection; rolls back the transaction that detected the cycle |
+
+This is recovery, not prevention — the DB only cleans up after a deadlock already happened; the app still needs to retry the rolled-back transaction.
+
 ## 12. What's the difference between a clustered and non-clustered index?
 A **clustered index** determines the physical storage order of table data (only one per table). A **non-clustered index** is a separate structure with pointers back to the actual rows (a table can have many).
+
+**বাংলায়:** **Clustered index** মানে — টেবিলের row-গুলো ডিস্কে *আসলেই* সেই column অনুযায়ী sorted order-এ সাজানো থাকে (বইয়ের পাতার মতো — পাতাগুলো নিজেই ক্রমানুসারে সাজানো)। একটা টেবিলে এটা মাত্র **একটাই** হতে পারে, কারণ data physically একবারই একভাবে সাজানো যায়। সাধারণত `PRIMARY KEY`-তে automatic হয়। **Non-clustered index** হলো একটা **আলাদা ছোট lookup table** — data নিজে যেখানে আছে সেখানেই থাকে, শুধু আলাদাভাবে sorted values + row-এর দিকে pointer রাখা হয় (বইয়ের শেষের index পাতার মতো — বিষয়ভিত্তিক তালিকা, কিন্তু আসল কন্টেন্ট অন্য পাতায়)। একটা টেবিলে অনেকগুলো non-clustered index থাকতে পারে।
+
+**PostgreSQL-এ গুরুত্বপূর্ণ ব্যতিক্রম:** Postgres-এ আসল "clustered index" বলে কিছু নেই — table সবসময় unordered heap হিসেবে থাকে, primary key দিলেও physical order গ্যারান্টি হয় না। `CLUSTER` command দিয়ে একবার physically reorder করা যায়, কিন্তু নতুন insert/update-এ সেই order থাকে না, তাই সময়ের সাথে আবার এলোমেলো হয়ে যায়। এই repo যেহেতু PostgreSQL ব্যবহার করে, তাই এখানে `account_id BIGINT PRIMARY KEY` একটা দ্রুত sorted **index** দেয় ঠিকই, কিন্তু MySQL/SQL Server-এর মতো "table নিজেই সেই order-এ সাজানো আছে" এই গ্যারান্টি দেয় না।
 
 **Real-life scenario:** an `accounts` table with millions of rows.
 
@@ -540,6 +570,18 @@ CREATE TABLE account_holders (
 ```
 
 Neither `account_id` alone nor `customer_id` alone is unique here (one account has several holders; one customer holds several accounts) — only the *pair* `(account_id, customer_id)` is guaranteed unique, which is exactly what a composite primary key expresses: "this customer is a holder on this account, and that combination can't be recorded twice."
+
+**বাংলায় — কীভাবে বানায়:** SQL-এ শুধু `PRIMARY KEY`-তে একের বেশি column comma দিয়ে দাও, উপরের উদাহরণের মতোই। JPA/Hibernate-এ এর জন্য `@EmbeddedId` (আলাদা `Serializable` key class, `equals()`/`hashCode()` override করতে হয়) অথবা `@IdClass` ব্যবহার করতে হয়।
+
+**Composite key vs unique constraint — পার্থক্য কী:** দুটোই "এই column-গুলোর combination duplicate হতে পারবে না" guarantee করে, তফাৎ হলো — composite key-তে সেই জোড়াটাই row-এর **identity** (আলাদা `id` column থাকে না), আর unique constraint-এ আলাদা একটা surrogate `id` থাকে, জোড়াটা শুধু একটা extra rule হিসেবে বসানো থাকে।
+
+| | Composite key | Unique constraint |
+|---|---|---|
+| Identity | `(col1, col2)` জোড়াই identity | আলাদা `id` |
+| অন্য টেবিল থেকে refer করা | কঠিন — দুইটা column পাঠাতে হয় | সহজ — শুধু `id` |
+| কবে ব্যবহার | Pure link table, যেটাকে আলাদা কোথাও refer করা লাগবে না | বেশিরভাগ বাস্তব app — যেখানে row-টাকে অন্য টেবিল থেকে refer করা লাগতে পারে |
+
+এই repo-র [Cart.java](../../../src/main/java/com/shihab/ecommerceapi/model/Cart.java) দ্বিতীয় পথটাই বেছে নিয়েছে — `@GeneratedValue` surrogate `id` রেখে, `(user_id, product_id)`-এর উপর `@UniqueConstraint` বসিয়েছে (composite primary key না) — যাতে ভবিষ্যতে অন্য টেবিল থেকে `Cart`-কে সহজে একটা `cart_id` দিয়ে refer করা যায়, দুইটা column না টেনে।
 
 ## 19. What's the difference between UNION and UNION ALL?
 `UNION` combines result sets and removes duplicates (slower, involves a sort/distinct step). `UNION ALL` combines result sets keeping duplicates (faster).
