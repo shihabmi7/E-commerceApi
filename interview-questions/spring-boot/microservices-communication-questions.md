@@ -9,7 +9,9 @@ A small, independently deployable service owning one piece of business capabilit
 Independent deployment (release the payment service without redeploying everything), independent scaling (scale the busy service, not the whole app), technology freedom (each service can pick its own DB/language), and fault isolation (one service crashing doesn't necessarily take the whole system down — though as Q6 shows, it can still cause problems downstream).
 
 ## 3. Synchronous communication — calling another service and waiting for the answer
-The caller sends a request and blocks until it gets a response — same mental model as calling any REST API.
+The caller sends a request and blocks until it gets a response — same mental model as calling any REST API. Use when the caller genuinely needs the result to proceed (e.g. "check payment status before confirming the order"). Spring gives you four real choices for the HTTP client itself — which one to reach for is its own common interview question.
+
+**OpenFeign — declarative, an interface you never implement:**
 ```java
 @FeignClient(name = "payment-service")
 public interface PaymentClient {
@@ -20,7 +22,45 @@ public interface PaymentClient {
 // in OrderService:
 PaymentDTO payment = paymentClient.getPayment(orderId);   // blocks here until payment-service responds
 ```
-Use when the caller genuinely needs the result to proceed (e.g. "check payment status before confirming the order").
+You declare an interface with `@FeignClient` + Spring MVC-style mapping annotations; Spring Cloud OpenFeign generates the implementation at startup — no HTTP-building code anywhere. This is the least boilerplate of the four, and it integrates directly with service discovery (Q8) and Resilience4j (`@CircuitBreaker`/`@Retry`, Q7/Q15) with just configuration, no wiring code. Best fit for a service that calls **many** other services — one clean interface per downstream dependency.
+
+**`RestClient` — fluent, synchronous, the modern default (Spring 6.1+/Boot 3.2+):**
+```java
+@Bean
+public RestClient paymentRestClient(RestClient.Builder builder) {
+    return builder.baseUrl("http://payment-service").build();
+}
+
+// in OrderService:
+PaymentDTO payment = paymentRestClient.get()
+        .uri("/api/payments/{orderId}", orderId)
+        .retrieve()
+        .body(PaymentDTO.class);   // blocks here, same as Feign
+```
+A fluent, builder-style API, blocking (like Feign), built into Spring itself (no extra dependency, unlike Feign which needs `spring-cloud-starter-openfeign`). Good default for a small number of outgoing calls where a full `@FeignClient` interface would be overkill.
+
+**`WebClient` — fluent, reactive/non-blocking:**
+```java
+@Bean
+public WebClient paymentWebClient(WebClient.Builder builder) {
+    return builder.baseUrl("http://payment-service").build();
+}
+
+// in OrderService (reactive stack):
+Mono<PaymentDTO> payment = paymentWebClient.get()
+        .uri("/api/payments/{orderId}", orderId)
+        .retrieve()
+        .bodyToMono(PaymentDTO.class);   // does NOT block — returns immediately, resolves later
+```
+Same fluent shape as `RestClient`, but non-blocking end-to-end — the calling thread is freed immediately instead of waiting, and the actual response is delivered later via the reactive pipeline (`Mono`/`Flux`). This only pays off if the *whole* call chain is reactive (a WebFlux app, not a classic Spring MVC/blocking-JDBC app like this repo) — mixing a non-blocking client into an otherwise-blocking service (blocking JDBC/JPA calls elsewhere in the same request) gains little, since the thread still ends up blocking somewhere else in the same request anyway.
+
+**`RestTemplate` — the old blocking client, in maintenance mode:**
+```java
+PaymentDTO payment = restTemplate.getForObject("http://payment-service/api/payments/{orderId}", PaymentDTO.class, orderId);
+```
+Predates `RestClient`; Spring's own docs mark it in maintenance mode (no new features), and `RestClient` is its direct fluent successor. Only relevant for legacy code — avoid it in anything new.
+
+**The one-line comparison an interviewer wants:** `RestClient` for a few simple outgoing calls (modern default, no extra dependency); `OpenFeign` once you're calling several downstream services and want one interface per dependency with minimal boilerplate; `WebClient` only inside a genuinely reactive (WebFlux) application; `RestTemplate` only in code you haven't migrated off yet. This repo's own `/v1` REST endpoints (`ProductController`, `CartController`, etc.) are themselves plain blocking Spring MVC, so if they ever needed to call another service, `RestClient` or `OpenFeign` — not `WebClient` — would be the natural fit.
 
 ## 4. Asynchronous communication — publish an event, don't wait
 The caller publishes a message and moves on immediately; some other service consumes it whenever it's ready.
@@ -136,6 +176,30 @@ If C is slow and its calls exhaust *their own* dedicated thread pool, B's other 
 
 ## 19. Orchestration vs. choreography — the short version
 Two ways to coordinate multiple services for one business process. **Orchestration**: a central coordinator explicitly calls each service in sequence and decides what happens next (closer to how A calling B calling C works — someone is directing traffic). **Choreography**: no coordinator — each service reacts to events from the previous one and publishes its own event, and the overall flow emerges from everyone just doing their part (closer to the async event-chain style from Q4/Q14). Orchestration is easier to reason about/debug (one place shows the whole flow); choreography scales better and avoids a single coordinator becoming a bottleneck or single point of failure, at the cost of the overall flow being harder to see in one place.
+
+**বাংলায় — এটা কি Saga pattern?** হ্যাঁ, সরাসরি সম্পর্কিত — Orchestration আর Choreography হলো Saga pattern বাস্তবায়নের দুইটা আলাদা "স্টাইল", Saga-র বিকল্প কিছু না। Saga (spring-boot-expert Q7) মানে: প্রতিটা step একটা local transaction, কোনো step fail করলে compensating transaction দিয়ে আগের step গুলো undo করা হয়। পার্থক্যটা শুধু — **"কে ঠিক করে দেয় পরের কাজটা কী"**:
+
+```
+Saga pattern = "প্রতিটা step local transaction, fail করলে compensate করে undo করা"
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+      Orchestration style          Choreography style
+```
+
+- **Orchestration** — একটা central coordinator সরাসরি প্রতিটা service-কে call করে, ক্রমানুসারে, আর সিদ্ধান্ত নেয় পরে কী হবে:
+  ```
+  Orchestrator ──► Order service (create order)
+               ──► Payment service (charge)
+               ──► Inventory service (reserve stock)
+  ```
+- **Choreography** — কোনো central coordinator নেই। প্রতিটা service নিজের কাজ শেষ করে একটা event publish করে, পরের service সেই event শুনে নিজের কাজ করে:
+  ```
+  Order service ──event: OrderPlaced──► Payment service
+  Payment service ──event: PaymentDone──► Inventory service
+  ```
+
+**সহজ মনে রাখার নিয়ম:** Saga হলো "ব্যাপারটা" (local transaction + compensation দিয়ে distributed transaction সামলানো), আর orchestration/choreography হলো "কীভাবে" সেটা বাস্তবায়ন করবে — একটা central বস দিয়ে (orchestration), নাকি সবাই মিলে event শুনে নিজে নিজে (choreography)।
 
 ## 20. What is contract testing, and why does it matter between A, B, and C?
 A way to verify that B's API still matches what A *expects* it to look like, without spinning up all three services together for every test. A defines a "contract" (example request/response pairs) against B's API; that contract is checked both from A's side (does A handle this shape correctly) and B's side (does B's real API actually still produce this shape) — commonly done with a tool like **Pact**. This catches "B changed a field name and broke A" *before* it reaches a shared staging environment, which matters more as the number of services (and teams owning them) grows — nobody wants to manually re-test every A→B→C combination after every deploy.

@@ -175,7 +175,7 @@ public class InventoryEventListener {
     }
 }
 ```
-`OrderService` doesn't need to know who's listening (`InventoryService`, an email service, analytics, etc.) — this is the choreography style from `microservices-communication-questions.md` Q19, and it's what backs a Saga's compensating-transaction chain (Q-saga in that same family of notes) when a downstream step fails.
+`OrderService` doesn't need to know who's listening (`InventoryService`, an email service, analytics, etc.) — this is the choreography style from `microservices-communication-questions.md` Q19, and it's what backs a Saga's compensating-transaction chain (`spring-boot-expert-questions.md` Q7) when a downstream step fails.
 
 ## 11. Kafka vs. RabbitMQ — when would you pick which?
 | | Kafka | RabbitMQ |
