@@ -1,6 +1,6 @@
-# Relational Database — Basic Interview Questions
+# Relational Database — Interview Questions (Basic + Expert)
 
-General concepts that apply across all relational databases (MySQL, PostgreSQL, Oracle, SQL Server, etc.).
+General concepts that apply across all relational databases (MySQL, PostgreSQL, Oracle, SQL Server, etc.). Q1-Q28 are core/basic concepts; Q29-Q40 go past table design and single-query tuning into engine internals and production-scale concerns (replication, distributed transactions, consistency) — Postgres-flavored, since that's this repo's database (`application.properties`).
 
 ## 1. What is a relational database?
 A database that stores data in tables (rows and columns) where relationships between tables are defined using keys (primary key, foreign key). Data integrity is enforced through constraints, and data is queried using SQL.
@@ -240,6 +240,8 @@ Here's what each ACID property guarantees about this exact transaction:
 
 - **Durability** — once `COMMIT` returns successfully, the transfer is permanent. Even if the database server loses power one second later, the updated balances survive (typically because the change was already written to a transaction log on disk before the commit was acknowledged).
 
+**Who actually gives the ACID guarantee?** The **database engine itself** (Postgres, MySQL, etc.) — never the application framework. A framework annotation like Spring's `@Transactional` doesn't add ACID behavior; it just marks where a transaction starts/commits/rolls back and hands control to the DB driver, which then calls `BEGIN`/`COMMIT`/`ROLLBACK` on the real database. The atomicity, consistency enforcement, isolation, and durability all happen inside the DB engine — the application layer is only a caller.
+
 ## 10. What are the transaction isolation levels?
 Read Uncommitted, Read Committed, Repeatable Read, Serializable — each trades off consistency guarantees against concurrency/performance. Higher isolation prevents more anomalies (dirty reads, non-repeatable reads, phantom reads) but reduces concurrency.
 
@@ -258,8 +260,19 @@ SELECT balance FROM accounts WHERE account_id = 'A';
 - Under `READ COMMITTED` (the common default, e.g. in PostgreSQL/SQL Server), Transaction 2 sees the last committed value, $500, until Transaction 1 actually commits.
 - Under `SERIALIZABLE`, the database behaves as if Transaction 1 and Transaction 2 ran one after another, fully preventing any overlap-related anomaly, at the cost of more blocking/retries under load.
 
+In Spring, the isolation level is set per method via `@Transactional(isolation = ...)`:
+```java
+@Transactional(isolation = Isolation.SERIALIZABLE)
+public void criticalOperation() {
+    // ...
+}
+```
+`Isolation.DEFAULT` (the default when omitted) just uses whatever the underlying database's own default is — `READ COMMITTED` for PostgreSQL/SQL Server, `REPEATABLE READ` for MySQL/InnoDB.
+
 ## 11. What is a deadlock? How can it be avoided?
 Two or more transactions waiting on locks held by each other, none able to proceed. Avoided by acquiring locks in a consistent order, keeping transactions short, and using timeouts/deadlock detection.
+
+**বাংলায়:** Deadlock হলো — দুই (বা বেশি) transaction একে অপরের জন্য আটকে বসে থাকে, কারণ প্রত্যেকে একটা row lock করে রেখেছে যেটা অন্যজনের দরকার (নিচের উদাহরণে A ধরে B চাইছে, B ধরে A চাইছে — কেউ এগোতে পারছে না)। DB নিজে থেকে এই চক্র (cycle) ধরে ফেলে এবং একটাকে rollback করে দেয় — এটা **recovery**, prevention না। আসল avoid করার উপায় হলো **consistent lock ordering** (নিচে কোড দেখো): সবসময় ছোট ID আগে lock করো, তাহলে cycle-ই তৈরি হবে না।
 
 **Real-life scenario:** two transfers happen at the same time in opposite directions.
 
@@ -279,8 +292,36 @@ UPDATE accounts SET balance = balance + 30 WHERE account_id = 'A'; -- waits, A i
 
 Transaction 1 holds A and waits for B; Transaction 2 holds B and waits for A — neither can finish. The database detects this and kills one transaction (rolling it back with a deadlock error) so the other can proceed. This is exactly why the "acquire locks in a consistent order" fix matters in practice: if every transfer always locked the lower account ID first, both transactions would queue for A first instead of deadlocking on each other.
 
+**How to actually avoid it — consistent lock ordering in code:** always lock rows in the same fixed order (e.g. by primary key), regardless of the order the caller passed the IDs in:
+```java
+@Transactional
+public void transfer(Long fromId, Long toId, BigDecimal amount) {
+    Long firstId  = fromId < toId ? fromId : toId;   // always lock the smaller id first
+    Long secondId = fromId < toId ? toId : fromId;
+
+    Account first  = accountRepository.findByIdForUpdate(firstId);
+    Account second = accountRepository.findByIdForUpdate(secondId);
+    // ...apply the debit/credit to whichever of first/second is `from`/`to`...
+}
+```
+Both `transfer(A, B, ...)` and `transfer(B, A, ...)` now lock `A` first — no cycle can form, so it doesn't just get caught and rolled back, it never happens.
+
+**Which databases detect/recover from it:** all major RDBMS do — it isn't a premium feature.
+| DB | How |
+|---|---|
+| **PostgreSQL** (this repo's DB) | Background check every `deadlock_timeout` (default 1s); kills one transaction, error `deadlock detected` (SQLSTATE `40P01`) |
+| **MySQL/InnoDB** | Real-time wait-graph tracking; rolls back the cheapest transaction to undo |
+| **SQL Server** | "Deadlock monitor" thread (~every 5s); picks a lowest-cost "victim" |
+| **Oracle** | Real-time detection; rolls back the transaction that detected the cycle |
+
+This is recovery, not prevention — the DB only cleans up after a deadlock already happened; the app still needs to retry the rolled-back transaction.
+
 ## 12. What's the difference between a clustered and non-clustered index?
 A **clustered index** determines the physical storage order of table data (only one per table). A **non-clustered index** is a separate structure with pointers back to the actual rows (a table can have many).
+
+**বাংলায়:** **Clustered index** মানে — টেবিলের row-গুলো ডিস্কে *আসলেই* সেই column অনুযায়ী sorted order-এ সাজানো থাকে (বইয়ের পাতার মতো — পাতাগুলো নিজেই ক্রমানুসারে সাজানো)। একটা টেবিলে এটা মাত্র **একটাই** হতে পারে, কারণ data physically একবারই একভাবে সাজানো যায়। সাধারণত `PRIMARY KEY`-তে automatic হয়। **Non-clustered index** হলো একটা **আলাদা ছোট lookup table** — data নিজে যেখানে আছে সেখানেই থাকে, শুধু আলাদাভাবে sorted values + row-এর দিকে pointer রাখা হয় (বইয়ের শেষের index পাতার মতো — বিষয়ভিত্তিক তালিকা, কিন্তু আসল কন্টেন্ট অন্য পাতায়)। একটা টেবিলে অনেকগুলো non-clustered index থাকতে পারে।
+
+**PostgreSQL-এ গুরুত্বপূর্ণ ব্যতিক্রম:** Postgres-এ আসল "clustered index" বলে কিছু নেই — table সবসময় unordered heap হিসেবে থাকে, primary key দিলেও physical order গ্যারান্টি হয় না। `CLUSTER` command দিয়ে একবার physically reorder করা যায়, কিন্তু নতুন insert/update-এ সেই order থাকে না, তাই সময়ের সাথে আবার এলোমেলো হয়ে যায়। এই repo যেহেতু PostgreSQL ব্যবহার করে, তাই এখানে `account_id BIGINT PRIMARY KEY` একটা দ্রুত sorted **index** দেয় ঠিকই, কিন্তু MySQL/SQL Server-এর মতো "table নিজেই সেই order-এ সাজানো আছে" এই গ্যারান্টি দেয় না।
 
 **Real-life scenario:** an `accounts` table with millions of rows.
 
@@ -530,6 +571,18 @@ CREATE TABLE account_holders (
 
 Neither `account_id` alone nor `customer_id` alone is unique here (one account has several holders; one customer holds several accounts) — only the *pair* `(account_id, customer_id)` is guaranteed unique, which is exactly what a composite primary key expresses: "this customer is a holder on this account, and that combination can't be recorded twice."
 
+**বাংলায় — কীভাবে বানায়:** SQL-এ শুধু `PRIMARY KEY`-তে একের বেশি column comma দিয়ে দাও, উপরের উদাহরণের মতোই। JPA/Hibernate-এ এর জন্য `@EmbeddedId` (আলাদা `Serializable` key class, `equals()`/`hashCode()` override করতে হয়) অথবা `@IdClass` ব্যবহার করতে হয়।
+
+**Composite key vs unique constraint — পার্থক্য কী:** দুটোই "এই column-গুলোর combination duplicate হতে পারবে না" guarantee করে, তফাৎ হলো — composite key-তে সেই জোড়াটাই row-এর **identity** (আলাদা `id` column থাকে না), আর unique constraint-এ আলাদা একটা surrogate `id` থাকে, জোড়াটা শুধু একটা extra rule হিসেবে বসানো থাকে।
+
+| | Composite key | Unique constraint |
+|---|---|---|
+| Identity | `(col1, col2)` জোড়াই identity | আলাদা `id` |
+| অন্য টেবিল থেকে refer করা | কঠিন — দুইটা column পাঠাতে হয় | সহজ — শুধু `id` |
+| কবে ব্যবহার | Pure link table, যেটাকে আলাদা কোথাও refer করা লাগবে না | বেশিরভাগ বাস্তব app — যেখানে row-টাকে অন্য টেবিল থেকে refer করা লাগতে পারে |
+
+এই repo-র [Cart.java](../../../src/main/java/com/shihab/ecommerceapi/model/Cart.java) দ্বিতীয় পথটাই বেছে নিয়েছে — `@GeneratedValue` surrogate `id` রেখে, `(user_id, product_id)`-এর উপর `@UniqueConstraint` বসিয়েছে (composite primary key না) — যাতে ভবিষ্যতে অন্য টেবিল থেকে `Cart`-কে সহজে একটা `cart_id` দিয়ে refer করা যায়, দুইটা column না টেনে।
+
 ## 19. What's the difference between UNION and UNION ALL?
 `UNION` combines result sets and removes duplicates (slower, involves a sort/distinct step). `UNION ALL` combines result sets keeping duplicates (faster).
 
@@ -565,3 +618,307 @@ CREATE TABLE accounts (
 ```
 
 Try `INSERT INTO accounts (account_id, account_number, customer_id, balance) VALUES (1, 'ACC-001', 999, -50)` where customer `999` doesn't exist and the balance is negative — the database rejects it outright on both the foreign key and the check constraint, before it ever becomes an application bug.
+
+## 21. What's the difference between a primary key and a unique key?
+Both enforce uniqueness across a column (or set of columns), but a table can have only **one** primary key and **multiple** unique keys, and a primary key column cannot be `NULL` while a unique key column can (most databases allow multiple `NULL`s in a unique column, since `NULL` is never considered equal to another `NULL`).
+
+**Real-life scenario:** the `accounts` table.
+
+```sql
+CREATE TABLE accounts (
+    account_id     BIGINT PRIMARY KEY,        -- the identity of the row; never null, only one per table
+    account_number VARCHAR(20) UNIQUE,        -- must be unique, but could theoretically be left null for a draft row
+    ssn            VARCHAR(11) UNIQUE         -- a second, independent uniqueness rule on the same table
+);
+```
+
+`account_id` is what every foreign key elsewhere in the schema points to — it's the row's identity. `account_number` and `ssn` are both "must be unique" but neither is *the* identity; a table can carry as many of these side uniqueness rules as it needs, but only one primary key.
+
+## 22. What are window functions? How do they differ from GROUP BY?
+A window function (`OVER (...)`) computes a value across a set of related rows **without collapsing them into one row per group**, unlike `GROUP BY`/aggregate functions which return one row per group. Each input row keeps its own row in the output, with the computed value attached.
+
+**Real-life scenario:** rank each customer's transactions by amount, without losing the individual transaction rows (a `GROUP BY` here would only give you one row per customer, not per transaction).
+
+```sql
+SELECT
+    customer_id,
+    transaction_id,
+    amount,
+    RANK() OVER (PARTITION BY customer_id ORDER BY amount DESC) AS rank_within_customer
+FROM transactions;
+```
+
+`PARTITION BY customer_id` resets the ranking for each customer (like a `GROUP BY` boundary), and `ORDER BY amount DESC` decides the rank within that partition — but every transaction row is still present in the result, each carrying its own rank. Common window functions: `ROW_NUMBER()` (always unique, 1,2,3...), `RANK()` (ties share a rank, next rank skips), `DENSE_RANK()` (ties share a rank, next rank doesn't skip), `LAG()`/`LEAD()` (read a previous/next row's value without a self-join).
+
+## 23. What is a CTE (Common Table Expression)?
+A named, temporary result set defined with `WITH ... AS (...)` and used within the query that follows it — a way to break a complex query into readable, named steps instead of nesting subqueries.
+
+**Real-life scenario:** find customers whose total balance across all their accounts exceeds $50,000.
+
+```sql
+WITH customer_totals AS (
+    SELECT customer_id, SUM(balance) AS total_balance
+    FROM accounts
+    GROUP BY customer_id
+)
+SELECT c.customer_name, ct.total_balance
+FROM customer_totals ct
+JOIN customers c ON c.customer_id = ct.customer_id
+WHERE ct.total_balance > 50000;
+```
+
+Without the CTE, this would either need a subquery in the `FROM` clause (harder to read once you have more than one step) or computing the sum twice. A CTE also supports **recursion** (`WITH RECURSIVE`), which is how you walk a hierarchy in SQL — e.g. an `employees(id, manager_id)` table, finding everyone under a given manager, several levels deep, without knowing the depth in advance.
+
+## 24. What's the difference between EXISTS and IN?
+Both check membership, but `EXISTS` stops as soon as it finds one matching row (a boolean check), while `IN` builds/compares against the full list of values the subquery returns. For large subquery results, `EXISTS` is usually faster; more importantly, they behave **differently with `NULL`**.
+
+**Real-life scenario:** find customers who have at least one transaction over $10,000.
+
+```sql
+-- EXISTS: stops at the first match per customer
+SELECT customer_name FROM customers c
+WHERE EXISTS (
+    SELECT 1 FROM transactions t
+    WHERE t.customer_id = c.customer_id AND t.amount > 10000
+);
+
+-- IN: builds the full list of matching customer_ids first, then checks membership
+SELECT customer_name FROM customers c
+WHERE c.customer_id IN (
+    SELECT customer_id FROM transactions WHERE amount > 10000
+);
+```
+
+**The NULL gotcha:** `NOT IN` silently returns **zero rows** if the subquery's result contains even a single `NULL` — `x NOT IN (1, 2, NULL)` is neither true nor false for any `x`, it's `UNKNOWN`, and `UNKNOWN` rows are filtered out. `NOT EXISTS` doesn't have this trap, since it's just checking "did any row match," not comparing against a list that might contain `NULL`. This is a classic interview/production gotcha: prefer `NOT EXISTS` over `NOT IN` whenever the subquery's column can be `NULL`.
+
+## 25. What do ON DELETE CASCADE / SET NULL / RESTRICT mean on a foreign key?
+They tell the database what to do to the **child** rows when the **parent** row they reference is deleted (or updated). Without one specified, most databases default to `RESTRICT`/`NO ACTION` — the delete is simply rejected if children still reference it.
+
+**Real-life scenario:** what happens to a customer's `Cart` rows if the customer account is deleted.
+
+```sql
+-- RESTRICT (default): deleting the customer fails if any cart rows reference them
+customer_id BIGINT REFERENCES customers(customer_id)
+
+-- CASCADE: deleting the customer automatically deletes their cart rows too
+customer_id BIGINT REFERENCES customers(customer_id) ON DELETE CASCADE
+
+-- SET NULL: deleting the customer leaves the cart row, but blanks out customer_id
+customer_id BIGINT REFERENCES customers(customer_id) ON DELETE SET NULL
+```
+
+`CASCADE` is convenient but dangerous if applied carelessly — a single delete can silently ripple through many tables. `SET NULL` requires the column to be nullable and is useful when the child record should survive on its own (e.g. an audit log shouldn't vanish just because the actor was deleted). `RESTRICT` is the safest default: it forces you to explicitly decide, rather than losing data by accident. In this repo, `Cart.user`/`Cart.product` (see [Cart.java](../../../src/main/java/com/shihab/ecommerceapi/model/Cart.java)) don't set a cascade behavior, so the database default (reject the delete) applies.
+
+## 26. What is connection pooling, and why does it matter?
+Opening a new database connection (TCP handshake, auth, session setup) is expensive — tens of milliseconds. A connection pool keeps a set of already-open connections ready to reuse, so a request borrows one, uses it, and returns it instead of opening/closing a connection per request.
+
+**Real-life scenario:** this repo's own default setup — Spring Boot auto-configures **HikariCP**, with a default `maximum-pool-size` of 10, and `spring.datasource.*` in `application.properties` pointing at Postgres. No explicit Hikari tuning is set, so the default of 10 connections per app instance applies.
+
+```properties
+# would go in application.properties if you wanted to override the default
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=10
+```
+
+The pool size matters more once you scale horizontally: if Postgres allows `max_connections=100` and this app scales to 8 pods, each holding its own pool of 10, that's `8 x 10 = 80` connections — still under the limit, but close, and it leaves little headroom for admin/other clients. A bigger pool per pod isn't automatically "faster" either — past a point, more concurrent connections just means more contention inside the database itself; a smaller, well-sized pool per pod, kept under the DB's real ceiling, usually performs as well or better than a larger one.
+
+## 27. What's the difference between OLTP and OLAP?
+**OLTP** (Online Transaction Processing) is optimized for many small, fast read/write transactions — the typical application database (place an order, update a cart, look up one customer). **OLAP** (Online Analytical Processing) is optimized for large, complex read-heavy queries over huge volumes of historical data (aggregations, trends, reports across millions of rows).
+
+**Real-life scenario:** this e-commerce app's own database is OLTP — `CartController.addToCart`, `ProductController.getById` are all quick, targeted reads/writes on current data. A separate analytics question like "total revenue by category, by month, for the last 3 years" is an OLAP-shaped query: it scans huge amounts of historical data and does heavy aggregation, which would compete with and slow down the live OLTP traffic if run against the same database.
+
+| | OLTP | OLAP |
+|---|---|---|
+| Query shape | Short, targeted (`WHERE id = ?`) | Broad, aggregated (`GROUP BY`, `SUM`, date ranges) |
+| Data | Current, normalized | Historical, often denormalized (star schema) |
+| Optimized for | Write throughput, low latency per request | Read throughput over large scans |
+| Example | This project's Postgres DB | A data warehouse (Snowflake, Redshift, BigQuery) |
+
+This is exactly why heavy reporting queries are usually run against a **replica** or a separate data warehouse, not the primary OLTP database — see Q28.
+
+## 28. Sharding vs. partitioning vs. replication — what's the difference?
+All three are ways to scale a database beyond one machine, but they solve different problems.
+
+- **Partitioning** — splitting **one large table** into smaller physical pieces (by range, list, or hash of a column), usually still on **one** database server. Queries that target the partition key only touch the relevant piece instead of the whole table. Solves "this one table is too big to scan efficiently."
+- **Sharding** — splitting a table's rows **across multiple separate database servers** (each shard holds a different subset of rows, e.g. by customer ID range). Solves "this one server can't hold/serve all the data or traffic," at the cost of cross-shard queries and joins becoming much harder.
+- **Replication** — copying the **same data** to multiple servers (a primary that accepts writes, and one or more replicas that stay in sync and serve reads). Solves "one server can't handle all the read traffic" and "I need a hot standby if the primary fails" — every replica has the full dataset, unlike a shard.
+
+```sql
+-- Partitioning example (Postgres): one logical table, physically split by date range
+CREATE TABLE transactions (
+    transaction_id BIGINT,
+    transaction_date DATE,
+    amount DECIMAL(12,2)
+) PARTITION BY RANGE (transaction_date);
+
+CREATE TABLE transactions_2026 PARTITION OF transactions
+    FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+```
+
+A common real-world combination: replicate for read scaling and failover, partition the biggest tables for query performance, and only reach for sharding once a single server genuinely can't hold the data or absorb the write load anymore — sharding is the most operationally complex of the three, so it's usually the last resort, not the first choice.
+
+## 29. What is MVCC, and how does it let readers and writers avoid blocking each other?
+**Multi-Version Concurrency Control**: instead of locking a row for reads, the database keeps multiple *versions* of a row and gives each transaction a consistent snapshot as of when it started. A reader never blocks a writer, and a writer never blocks a reader — only two writers touching the same row actually contend.
+
+**Real-life scenario:** a `SELECT` on `Product` while an `UPDATE` to the same row is mid-flight.
+```sql
+-- Transaction 1 (long-running report query)
+BEGIN;
+SELECT * FROM products WHERE id = 5;  -- sees the row as of this transaction's snapshot
+
+-- Transaction 2 (concurrent update)
+UPDATE products SET price = 12.99 WHERE id = 5;  -- creates a NEW row version, doesn't block T1's read
+COMMIT;
+```
+In Postgres, `UPDATE` doesn't modify the row in place — it writes a brand-new row version (old row marked with an `xmax`, new one gets an `xmin`) and each transaction only sees the version valid for its own snapshot (isolation level dependent, see Q10). The old version becomes **dead** once no transaction can still see it — which is exactly what Q30 (`VACUUM`) has to clean up. This is also why Postgres never needs a dedicated "read lock" the way some older engines do.
+
+## 30. What is VACUUM in PostgreSQL, and why does it matter?
+Because MVCC (Q29) never deletes an old row version in place, `UPDATE`/`DELETE` leave behind **dead tuples** — old versions nothing can see anymore, but still physically occupying disk space. `VACUUM` reclaims that space for reuse (it does *not* shrink the file back to the OS by default — that needs `VACUUM FULL`, which takes an exclusive lock).
+
+**Real-life scenario:** `Cart` rows get updated constantly (`bumpQuantity` in `CartService.addToCart`) — every bump leaves a dead tuple behind.
+```sql
+VACUUM ANALYZE cart;   -- reclaims dead tuple space + refreshes planner statistics
+```
+Autovacuum runs this automatically in the background by default, but a table with very high write/update churn (like a busy `cart` table) can still bloat faster than autovacuum keeps up, especially under heavy load or long-running transactions (a transaction open for hours prevents Postgres from considering rows dead, since *that* transaction might still need the old version). Left unchecked, table and index bloat slows every query on that table and eventually forces manual intervention. This is the same underlying mechanism behind Q47 in the MCQ file (the on-call doctors `SERIALIZABLE` anomaly) — MVCC snapshots are what let two concurrent reads both see "2 on duty" even while updates are in flight.
+
+## 31. How do you read an `EXPLAIN ANALYZE` output?
+`EXPLAIN` shows the planner's chosen query plan and its *estimated* cost; `EXPLAIN ANALYZE` actually **runs** the query and adds *real* timing/row counts, which is what you compare estimated vs. actual to spot a bad plan.
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM transactions WHERE customer_id = 42 AND transaction_date > '2026-06-21';
+```
+```
+Bitmap Heap Scan on transactions  (cost=12.50..145.32 rows=40 width=64) (actual time=0.45..2.10 rows=38 loops=1)
+  Recheck Cond: (customer_id = 42)
+  ->  Bitmap Index Scan on idx_customer_date  (cost=0.00..12.49 rows=40 width=0) (actual time=0.30..0.30 rows=38 loops=1)
+        Index Cond: (customer_id = 42)
+  Filter: (transaction_date > '2026-06-21')
+Planning Time: 0.15 ms
+Execution Time: 2.35 ms
+```
+What to look for:
+- **Scan type**: `Seq Scan` (reads the whole table — fine for a small table, a red flag on a big one), `Index Scan` (jumps via the index, fetches rows one at a time), `Bitmap Heap Scan` (index finds matching rows in one pass, then fetches the actual pages in physical order — cheaper than `Index Scan` when many rows match).
+- **`rows=X` estimated vs. `rows=Y` actual**: a huge gap means the planner's statistics are stale (`ANALYZE` the table) or the query needs rewriting — a bad row estimate often means every plan decision downstream (join order, join algorithm) is also wrong.
+- **`cost=start..total`**: arbitrary planner units, not milliseconds — only useful for comparing plans against each other, not as an absolute number.
+- **Nested loops with a high `loops=N`** on an inner scan are a common N+1-at-the-SQL-level smell — the same shape as the ORM-level N+1 problem in Q17, just visible directly in the plan.
+
+## 32. What is a covering index / index-only scan?
+An index that includes **every column the query needs** (not just the `WHERE`/`JOIN` columns), so Postgres can answer the query straight from the index without ever touching the actual table (heap) rows.
+```sql
+-- Query only ever needs these 3 columns
+SELECT customer_id, transaction_date, amount
+FROM transactions
+WHERE customer_id = 42;
+
+-- Covering index: customer_id for the WHERE, INCLUDE adds the rest without making them sort keys
+CREATE INDEX idx_covering ON transactions (customer_id) INCLUDE (transaction_date, amount);
+```
+Without `INCLUDE`, Postgres finds the matching index entries, then still has to jump to the heap to fetch `transaction_date`/`amount` (a "heap fetch" per row) — extra random I/O. With every needed column inside the index, `EXPLAIN` shows `Index Only Scan`, skipping the heap entirely (subject to Postgres's visibility map being up to date, which is another thing `VACUUM`, Q30, maintains). The trade-off: a wider index costs more disk space and slightly more write overhead, so it's worth it only for genuinely hot, narrow queries.
+
+## 33. What is write-ahead logging (WAL), and how does it relate to durability and replication?
+Before any change is applied to the actual data files, Postgres first writes a record of that change to the **WAL** (a sequential, append-only log — the actual mechanism behind the "commit log" concept from `kafka-questions.md` Q2, just for a relational DB instead of Kafka). Once the WAL record is safely on disk, the transaction can be acknowledged as committed — this is what gives Durability (the "D" in ACID, Q9) even if the server crashes right after.
+```
+Client: COMMIT
+   │
+   ▼
+Postgres: write change to WAL (fsync to disk)  ← durability guaranteed HERE
+   │
+   ▼
+Postgres: acknowledges COMMIT to client
+   │
+   ▼ (can happen later, async)
+Postgres: applies the actual change to the data files
+```
+If the server crashes between "WAL written" and "data file updated," Postgres replays the WAL on restart to redo the work — nothing is lost. This same WAL stream is also **how replication works** (Q34): a replica just receives and replays the same WAL records the primary generated, applying the exact same sequence of changes.
+
+## 34. Streaming replication vs. logical replication — what's the difference?
+Both copy data from a primary to a replica, but at different levels.
+- **Streaming (physical) replication**: the replica receives the raw WAL byte stream (Q33) and replays it exactly — the replica becomes a byte-for-byte copy of the primary. Fast, simple, but all-or-nothing: you replicate the *entire* database/cluster, and the replica must be the same Postgres major version.
+- **Logical replication**: decodes the WAL into logical changes (`INSERT`/`UPDATE`/`DELETE` on specific tables) and replays those as SQL-level operations. Slower, but lets you replicate a subset of tables, replicate into a *different* schema/version, or even into a different database entirely (e.g. feeding a data warehouse for OLAP, Q27).
+```sql
+-- Logical replication: publish specific tables on the primary
+CREATE PUBLICATION order_events FOR TABLE orders, order_items;
+
+-- Subscribe from another Postgres instance
+CREATE SUBSCRIPTION order_events_sub
+    CONNECTION 'host=primary dbname=ecommerce'
+    PUBLICATION order_events;
+```
+Streaming replication is the default choice for read replicas/failover (Q35); logical replication is the choice when you need selective, cross-version, or cross-system data flow.
+
+## 35. What is replication lag, and what consistency problems does it cause?
+A replica applies WAL records **after** the primary already committed them — there's always some delay, even if tiny. During that window, a query against the replica can return **stale** data.
+
+**Real-life scenario:** `OrderService.placeOrder` writes to the primary, then the confirmation page immediately reads the order back — but the read is routed to a replica that hasn't caught up yet.
+```
+T0: Primary commits new Order row
+T0+50ms: Replica still hasn't applied it (lag)
+T0+10ms: Confirmation page reads from the replica → "order not found" or shows the pre-order state
+```
+This is the classic **read-your-writes** consistency problem. Common fixes: route the *immediate* post-write read back to the primary (or a replica confirmed to be caught up), accept eventual consistency for things that can tolerate it (e.g. an analytics dashboard), or use a session-level guarantee (some setups stick a user's reads to the primary for N seconds after they write). This is a narrower, DB-specific version of the same trade-off CAP theorem (Q38) describes at the whole-system level.
+
+## 36. Two-phase commit (2PC) vs. the Saga pattern — when would you actually reach for 2PC?
+Both coordinate a transaction across multiple databases/services, but with very different guarantees and costs.
+- **2PC**: a coordinator asks every participant to **prepare** (lock resources, confirm it *can* commit) and only tells everyone to actually **commit** once all participants say yes — genuinely atomic across systems, but every participant holds locks for the whole round-trip, and if the coordinator crashes mid-protocol, participants can be left blocked holding locks indefinitely ("in-doubt" transactions).
+- **Saga** (microservices notes Q19): each step commits locally and immediately; a failure triggers **compensating** actions to undo prior steps. No cross-system locks held, but there's a window where the system is genuinely in an intermediate state (Order created, Payment not yet confirmed) that other reads can observe.
+```
+2PC:   Prepare(A) → Prepare(B) → Prepare(C) → [all yes] → Commit(A) → Commit(B) → Commit(C)
+                                              → [any no]  → Abort(A) → Abort(B) → Abort(C)
+
+Saga:  Commit(A) → Commit(B) → Commit(C) succeeds, OR
+       Commit(A) → Commit(B) → Fail(C) → Compensate(B) → Compensate(A)
+```
+In practice: 2PC is rare in microservices architectures precisely because of that locking/availability cost (a slow or dead participant blocks everyone) — it shows up more within a *single* database engine's internal distributed transaction handling, or specific XA-transaction integrations. Most microservice systems (this project's `OrderService.placeOrder` → Payment example, MCQ Q66) use sagas instead, trading strict cross-system atomicity for availability and accepting a brief inconsistent window that compensations resolve.
+
+## 37. `plan_cache_mode` and parameter sniffing — how can a cached query plan go wrong?
+For a **prepared statement** run repeatedly with different parameter values, Postgres can either re-plan every execution (using the actual parameter values — "custom plan") or cache one **generic plan** after enough executions and reuse it regardless of the parameter values passed in.
+
+**Real-life scenario:** a query filtering `transactions` by `status` where 99% of rows are `'COMPLETED'` and 1% are `'DISPUTED'`.
+```sql
+PREPARE find_by_status (text) AS
+SELECT * FROM transactions WHERE status = $1;
+
+EXECUTE find_by_status('DISPUTED');    -- best plan: Index Scan (few matching rows)
+EXECUTE find_by_status('COMPLETED');   -- best plan: Seq Scan (most of the table matches anyway)
+```
+If Postgres settles on a generic plan optimized for the *average* case, a query for the rare value (`'DISPUTED'`) can end up using a `Seq Scan` when an `Index Scan` would've been far cheaper, or vice versa — the plan doesn't adapt per call. `plan_cache_mode` (`auto` (default) / `force_custom_plan` / `force_generic_plan`) controls this trade-off: `force_custom_plan` re-plans every time (safer for skewed data, more planning overhead per call); `force_generic_plan` never re-plans (cheaper planning, risk of a bad plan for outlier parameter values). This is the Postgres-specific flavor of the more general "parameter sniffing" problem that also shows up in SQL Server/other engines with cached execution plans.
+
+## 38. How does the CAP theorem relate to choosing Postgres vs. a NoSQL store for a given feature?
+CAP says a **distributed** system can only fully guarantee two of **Consistency** (every read sees the latest write), **Availability** (every request gets a response), and **Partition tolerance** (the system keeps working despite network partitions between nodes) — and since network partitions can always happen, the real choice in practice is **CP vs. AP** when a partition occurs.
+
+- **A single-primary Postgres setup** (this repo's setup) is effectively **CP**: all writes go through one primary, so it's strongly consistent, but if the primary is unreachable, writes stop (you sacrifice availability rather than risk inconsistency).
+- **A multi-master or eventually-consistent store** (many NoSQL databases, some multi-region setups) leans **AP**: it stays available and accepts writes even during a partition, but different nodes can temporarily disagree, resolved later (eventual consistency) — the same lag/staleness idea as Q35, just as an explicit design choice rather than a side effect.
+
+**Where this matters practically in an e-commerce system:** `Order`/`Payment` data wants **CP** — you'd rather reject a checkout than silently lose consistency about whether payment happened. A `ProductView` counter or a recommendation cache can tolerate **AP** — showing a slightly stale "1,204 views" is harmless, and staying available matters more than perfect accuracy. This is exactly why a real system is rarely "one database for everything" — the CAP trade-off is made **per piece of data**, not once for the whole architecture.
+
+## 39. What is partition pruning, and how does it interact with query performance?
+When a table is partitioned (Q28), the planner can skip scanning partitions that **cannot possibly** contain matching rows, based on the `WHERE` clause and the partition key — this is pruning.
+```sql
+CREATE TABLE transactions (
+    transaction_id BIGINT,
+    transaction_date DATE,
+    amount DECIMAL(12,2)
+) PARTITION BY RANGE (transaction_date);
+
+CREATE TABLE transactions_2025 PARTITION OF transactions FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+CREATE TABLE transactions_2026 PARTITION OF transactions FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+
+EXPLAIN SELECT * FROM transactions WHERE transaction_date > '2026-06-01';
+-- Plan only touches transactions_2026 — transactions_2025 is pruned entirely, never scanned
+```
+Pruning only works when the `WHERE` clause directly constrains the partition key with a comparable literal/parameter — wrapping the column in a function (`WHERE EXTRACT(YEAR FROM transaction_date) = 2026`, the same "function on an indexed column" mistake as Q16) defeats pruning just like it defeats a regular index, forcing every partition to be scanned. This is the mechanism that makes partitioning (rather than just indexing) worth it for genuinely huge time-series-style tables: entire partitions — potentially billions of rows — are skipped without even opening them.
+
+## 40. Application-level pooling (HikariCP) vs. an external pooler (PgBouncer) — when do you need both?
+HikariCP (Q26, this repo's default) pools connections **per application instance** — each pod holds its own pool of up to `maximum-pool-size` connections, all the way to the database. **PgBouncer** sits as a separate proxy *in front of* Postgres and pools connections **across every client**, including every app instance.
+
+**Real-life scenario:** this repo's own numbers from Q26 — `max_connections=100` on Postgres, HikariCP default of 10 per pod, scaled to 8 pods (`8 x 10 = 80`, uncomfortably close to the limit).
+```
+Without PgBouncer:
+  8 pods x 10 HikariCP connections each = 80 real Postgres connections, always open
+
+With PgBouncer (transaction pooling mode) in front of Postgres:
+  8 pods x 10 HikariCP connections each = 80 connections... to PgBouncer, not Postgres
+  PgBouncer multiplexes those onto a much smaller real pool to Postgres (e.g. 20),
+  handing out a real connection only for the duration of one transaction
+```
+This matters because each real Postgres connection is a full OS process with real memory overhead — Postgres doesn't handle thousands of idle connections gracefully the way some other engines do. PgBouncer (or a managed equivalent) lets you scale to many more application instances/threads than `max_connections` would otherwise allow, by sharing a much smaller pool of *actual* database connections underneath. The trade-off: PgBouncer's transaction-pooling mode breaks session-level features that assume a connection is "yours" for the whole session (e.g. `SET` variables, `LISTEN`/`NOTIFY`, prepared statements across transactions) — worth checking against before adopting it blindly.
