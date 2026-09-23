@@ -922,3 +922,18 @@ With PgBouncer (transaction pooling mode) in front of Postgres:
   handing out a real connection only for the duration of one transaction
 ```
 This matters because each real Postgres connection is a full OS process with real memory overhead — Postgres doesn't handle thousands of idle connections gracefully the way some other engines do. PgBouncer (or a managed equivalent) lets you scale to many more application instances/threads than `max_connections` would otherwise allow, by sharing a much smaller pool of *actual* database connections underneath. The trade-off: PgBouncer's transaction-pooling mode breaks session-level features that assume a connection is "yours" for the whole session (e.g. `SET` variables, `LISTEN`/`NOTIFY`, prepared statements across transactions) — worth checking against before adopting it blindly.
+
+## 41. Indexing vs. partitioning — what's the actual difference?
+Both speed up queries on a large table, but in fundamentally different ways: an **index** adds a separate lookup structure alongside the data (the data itself doesn't move) to find specific rows fast; **partitioning** physically splits the table itself into smaller pieces so entire chunks can be skipped without even being opened.
+
+**বাংলায়:**
+- **Indexing** — টেবিলের আসল data একই জায়গায় থাকে, শুধু পাশে একটা আলাদা, ছোট lookup structure বানানো হয় (`CREATE INDEX idx_customer_id ON transactions (customer_id)`), যেটা বলে দেয় নির্দিষ্ট value কোন row-এ আছে — বইয়ের শেষের index পাতার মতো।
+- **Partitioning** — পুরো টেবিলটাকেই কোনো একটা column (যেমন date) অনুযায়ী আলাদা আলাদা physical টুকরায় ভেঙে ফেলা হয় (`PARTITION BY RANGE (transaction_date)`), তারপরও সবগুলো একটাই logical টেবিল নামে ব্যবহার করা যায় — বইটাকেই কয়েকটা খণ্ডে ভাগ করার মতো।
+
+| | Indexing | Partitioning |
+|---|---|---|
+| Data কোথায় থাকে | একই জায়গায়, পাশে lookup structure যোগ হয় | Data নিজেই আলাদা আলাদা টুকরায় ভাগ হয়ে যায় |
+| কী করে | নির্দিষ্ট row খুঁজে বের করা দ্রুত করে | পুরো টুকরা (লাখ লাখ row) স্কিপ করে বাদ দেয় (partition pruning, Q39) |
+| সংখ্যা | একটা টেবিলে অনেকগুলো index থাকতে পারে | একটা নির্দিষ্ট column দিয়েই partition হয় |
+
+**একসাথে ব্যবহার হয়, বিকল্প না:** বাস্তবে দুটোই একসাথে ব্যবহার হয় — একটা বিশাল টেবিল প্রথমে date দিয়ে partition করা হয় (বড় টুকরা skip করার জন্য), তারপর প্রতিটা partition-এর ভেতরেও `customer_id`-এর মতো column-এ index রাখা হয় (সেই টুকরার ভেতরে দ্রুত খুঁজতে) — একটা বড় চালুনি, আরেকটা ছোট চালুনি, দুইটা মিলেই কাজটা efficient হয়।
