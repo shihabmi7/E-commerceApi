@@ -109,6 +109,30 @@ environment:
 ```
 `JWT_SECRET_KEY` is deliberately **not** hardcoded in the compose file — it's substituted from whatever's in the shell environment or a local `.env` file (excluded from the build context and from git via `.dockerignore`/`.gitignore`). For real production secrets at scale, a dedicated secret store (Kubernetes `Secret` — Q37, AWS Secrets Manager, Vault) is preferred over plain env vars, since env vars are visible via `docker inspect`/process listing on the host.
 
+**বাংলায় — AWS Secrets Manager থেকে production runtime-এ কীভাবে secret আনবে:** মূলত ৩টা উপায়:
+
+- **External Secrets Operator (Kubernetes/EKS-এ সবচেয়ে common)** — AWS Secrets Manager-এর value automatically sync করে একটা normal k8s `Secret`-এ কপি করে দেয়, app-এর code বা এই repo-র `envFrom: secretRef` pattern-এ কিচ্ছু বদলাতে হয় না:
+  ```yaml
+  apiVersion: external-secrets.io/v1beta1
+  kind: ExternalSecret
+  spec:
+    secretStoreRef: { name: aws-secrets-manager, kind: SecretStore }
+    target: { name: ecommerce-secret }   # এই নামেই normal k8s Secret তৈরি হবে
+    data:
+      - secretKey: JWT_SECRET_KEY
+        remoteRef: { key: ecommerce/jwt-secret-key }
+  ```
+  Pod-কে AWS-এর সাথে authenticate করতে **IRSA** (IAM Roles for Service Accounts) লাগে — hardcoded AWS access key ছাড়াই, pod-এর নিজস্ব IAM role দিয়ে শুধু ওই নির্দিষ্ট secret পড়ার permission দেওয়া থাকে।
+
+- **App নিজে AWS SDK দিয়ে fetch করা** — secret কখনো env var হিসেবেই থাকে না, সরাসরি app-এর মেমোরিতে আসে:
+  ```properties
+  spring.config.import=aws-secretsmanager:ecommerce/jwt-secret-key
+  ```
+
+- **ECS `secrets` field** (Kubernetes ছাড়া plain ECS হলে) — task definition-এই ARN দিয়ে দাও, container শুরু হওয়ার আগেই ECS agent নিজে resolve করে env var বসিয়ে দেয়, কোনো code বদল লাগে না।
+
+**সহজ নিয়ম:** Kubernetes-এ থাকলে External Secrets Operator সবচেয়ে কম কোড বদলে কাজ করে (existing env-var pattern-ই রেখে দেয়); secret কখনো env var আকারে না আসুক এটা চাইলে app নিজে SDK দিয়ে fetch করাই ভালো।
+
 ## 17. Docker volumes vs. bind mounts — difference and when to use each.
 Both let a container persist/share data outside its own writable layer, but **volumes** are managed entirely by Docker (stored under Docker's own directory, portable, independent of host filesystem layout), while **bind mounts** point at a specific path on the host machine directly.
 ```bash
@@ -116,6 +140,8 @@ docker run -v mysql_data:/var/lib/mysql mysql:8.3.0        # named volume — Do
 docker run -v ./local-config:/etc/config:ro nginx           # bind mount — a specific host path
 ```
 Volumes are the right default for a database's actual data (portable, works the same on any host); bind mounts are useful for local development (mounting your source code into a container for live-reload) or mounting a specific host config file in.
+
+**বাংলায় — কখন কোনটা:** **Volume** — যখন data সত্যিকারের persist করতে হবে আর host-এর exact folder নিয়ে ভাবতে চাও না (যেমন MySQL-এর data, Q18)। **Bind mount** — যখন host-এর একটা নির্দিষ্ট file/folder সরাসরি container-এ দেখাতে চাও (যেমন local dev-এ নিজের `src/` মাউন্ট করে live-reload, বা একটা নির্দিষ্ট config file দেওয়া)।
 
 ## 18. Why would a container's data disappear on restart, and how do you prevent it?
 A container's own writable layer is **ephemeral** — `docker rm`/recreating the container discards it entirely. This repo's `docker-compose.yml` doesn't declare a named volume for `mysql`'s data directory, which means every `docker-compose down` (or a container recreation) loses all database data. The fix is mounting a volume onto MySQL's data path:
@@ -135,6 +161,20 @@ Now the actual data lives in the `mysql_data` volume, independent of the contain
 - **none**: the container gets no network access at all — useful for a batch job that only needs the filesystem, never the network.
 
 Compose creates a dedicated bridge network per project by default, which is why this repo's three services (`mysql`, `rabbitmq`, `springboot-app`) can resolve each other by service name without any manual network setup.
+
+**বাংলায়:**
+- **`bridge`** (default) — প্রতিটা container একটা নিজস্ব private IP পায় একটা isolated virtual network-এ; একই bridge network-এর container-রা একে অপরকে **service name দিয়ে** খুঁজে পায় (Q14) — Docker নিজে internal DNS চালায় ওই network-এর ভেতর।
+- **`host`** — container host machine-এর network সরাসরি ব্যবহার করে, নিজের আলাদা IP নেই, port mapping (`-p`) লাগে না — কিন্তু host-এর সাথে কোনো isolation থাকে না।
+- **`none`** — container-এর কোনো network access-ই নেই, সম্পূর্ণ বিচ্ছিন্ন — যেই কাজে network দরকারই নেই (একটা batch/file-processing job) সেখানে security-র জন্য ভালো।
+
+**Custom bridge network কীভাবে বানায়:**
+```bash
+docker network create my-app-network          # নতুন bridge network তৈরি
+docker run --network my-app-network --name mysql mysql:8.3.0
+docker run --network my-app-network --name springboot-app my-app-image
+# এখন springboot-app কন্টেইনার থেকে "mysql" নামেই সেই container-কে খুঁজে পাওয়া যাবে
+```
+`docker-compose.yml` ব্যবহার করলে এটা manually করার দরকার নেই — Compose নিজে থেকেই প্রতিটা project-এর জন্য একটা dedicated bridge network বানিয়ে দেয় (এই repo-র ক্ষেত্রে ঠিক এটাই হচ্ছে), তাই `mysql`, `rabbitmq`, `springboot-app` কোনো manual network setup ছাড়াই একে অপরকে নামে খুঁজে পায়।
 
 ## 20. How do you debug a running container?
 ```bash
@@ -180,6 +220,20 @@ docker run --memory=512m --cpus=1.0 shihabmi7/ecommerce-api:latest
 ```
 Without limits, a single misbehaving container (a memory leak, a runaway query) can consume all of the host's resources and starve every other container on the same machine — there's no isolation on resource *usage* by default, only on namespace/filesystem. In Kubernetes, this same idea is expressed as `resources.limits`/`resources.requests` per container in a Pod spec — this repo's `k8s/app/ecommerce_deployment.yaml` doesn't set any, meaning a single pod has no ceiling on what it can consume from its node, and the scheduler has no `requests` value to reason about when placing it.
 
+**বাংলায়:** Default-এ container-এর resource usage-এর কোনো ceiling নেই — Docker শুধু filesystem/namespace আলাদা করে, usage limit করে না। তাই একটা misbehaving container (memory leak, runaway query) পুরো host-এর resource খেয়ে ফেলে বাকি সব container-কে ক্ষতিগ্রস্ত করতে পারে, যদিও তাদের নিজেদের কোনো সমস্যা নেই।
+
+Kubernetes-এ:
+```yaml
+resources:
+  requests:              # scheduler নিশ্চিত করে রাখে — pod বসানোর সময় এতটুকু আছে কিনা দেখে
+    memory: "256Mi"
+    cpu: "250m"
+  limits:                 # এর বেশি ব্যবহার করলে memory-তে OOM kill, CPU-তে throttle
+    memory: "512Mi"
+    cpu: "500m"
+```
+এই repo-র `k8s/app/ecommerce_deployment.yaml`-এ কোনোটাই সেট নেই — মানে pod-টার resource usage-এর কোনো ceiling নেই, আর scheduler-এর কাছেও কোনো `requests` value নেই বলে node-এ বসানোর সময় ঠিকভাবে হিসাব করে বসাতে পারে না। এটা মূলত bulkhead pattern-এর (microservices notes Q18) মতোই ধারণা — একটার resource আলাদা করে বেঁধে দেওয়া, যাতে সেটা বাকি সবকিছুকে না নিয়ে যায়।
+
 ## 27. Why should containers run as a non-root user?
 By default, the process inside a container runs as **root** unless told otherwise — and container isolation, while strong, is not a perfect security boundary (a container-escape vulnerability, or a mounted host path, can turn "root inside the container" into a real problem on the host). Best practice is to create and switch to an unprivileged user in the Dockerfile:
 ```dockerfile
@@ -189,11 +243,17 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 This repo's Dockerfile doesn't do this today — the app runs as root inside the container. It's a common, worthwhile hardening step: an attacker who compromises the running app is then constrained to an unprivileged user's permissions, not root, inside the container.
 
+**বাংলায়:** Default-এ container-এর ভেতরের process **root হিসেবেই চলে**, যদি না নিজে থেকে বলে দাও। এটা ঝুঁকিপূর্ণ দুইটা কারণে — (১) container-escape vulnerability হলে root থাকা মানে host-এও root-এর মতো ক্ষমতা পাওয়ার ঝুঁকি, আর (২) কোনো host path mount করা থাকলে (bind mount, Q17), compromised হলে root process সেই path-এ host-এর permission অনুযায়ী যা খুশি করতে পারবে — non-root user হলে অনেক বেশি সীমিত থাকতো। **মূল কথা:** attacker app compromise করলেও root-এ না থেকে একটা limited user-এর permission-এই আটকে থাকবে। এই repo-র Dockerfile-এ এখনো `USER` instruction নেই — app root হিসেবেই চলছে, এটা এখনো বাকি থাকা একটা সহজ hardening step।
+
 ## 28. What is the "build context," and why can a large one slow down builds?
 The build context is the full set of files sent from your machine to the Docker daemon before the build starts — normally the directory you run `docker build .` from. Every `COPY`/`ADD` instruction can only reference files inside that context. A large context (an untrimmed `node_modules/`, `.git/` history, `target/` build output) has to be zipped up and transferred to the daemon on *every single build*, even for files that never get `COPY`'d into the image — this is exactly what `.dockerignore` (Q8) exists to trim down.
 
+**বাংলায়:** `docker build .` চালালে build শুরু হওয়ার **আগেই** ওই folder-এর সব ফাইল zip করে Docker daemon-এর কাছে পাঠানো হয় — এটাই build context। `COPY`/`ADD` শুধু এই context-এর ভেতরের ফাইলই access করতে পারে। সমস্যা হলো — যেই ফাইল কখনো `COPY` হবেই না (`.git/`, `target/`, `interview-questions/`), সেগুলোও **প্রতিবার** zip করে পাঠাতে হয়, শুধু একটা অপ্রাসঙ্গিক `.md` ফাইল বদলালেও — এতে build শুরু হতেই অযথা দেরি হয়। এই repo-র `.dockerignore` (Q8) ঠিক এই ফাইলগুলোই বাদ দিয়ে দেয়, তাই প্রতিবার শুধু আসলে দরকারি ফাইল (`src/`, `pom.xml`) পাঠানো হয়।
+
 ## 29. `docker-compose up` vs. `docker-compose up --build` — what's the difference?
 `docker-compose up` starts containers from **already-built** images — if `springboot-app`'s image was built once and the Dockerfile/source hasn't changed since, Compose reuses the existing image as-is, even if you've since edited a source file. `docker-compose up --build` forces Compose to **rebuild** any service with a `build:` key (like `springboot-app: build: .` in this repo) before starting it — the command you actually want after changing application code, since otherwise you'd be running a stale image without realizing it.
+
+**বাংলায় — Diff:** `docker-compose up` আগে থেকে build করা image দিয়েই container চালায়, নতুন করে build করে না — code বদলালেও **নীরবে পুরনো (stale) image-ই চালাতে থাকবে**, কোনো warning ছাড়াই। `docker-compose up --build` চালু করার আগে `build:` key থাকা service-গুলোর image নতুন করে rebuild করে, তারপর সেই নতুন image দিয়ে চালায়। **সহজ নিয়ম:** application code বদলানোর পর সবসময় `--build` দাও, নাহলে পরিবর্তন reflect হবে না।
 
 ## 30. What is Docker Buildx, and what problem does multi-arch solve?
 Buildx is Docker's extended build engine (`docker/setup-buildx-action` in this repo's `docker-ci-cd.yml`) that, among other things, supports building a single image manifest that works across **multiple CPU architectures** (`linux/amd64`, `linux/arm64`) in one build:
