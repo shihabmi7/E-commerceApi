@@ -201,5 +201,110 @@ Saga pattern = "প্রতিটা step local transaction, fail করলে 
 
 **সহজ মনে রাখার নিয়ম:** Saga হলো "ব্যাপারটা" (local transaction + compensation দিয়ে distributed transaction সামলানো), আর orchestration/choreography হলো "কীভাবে" সেটা বাস্তবায়ন করবে — একটা central বস দিয়ে (orchestration), নাকি সবাই মিলে event শুনে নিজে নিজে (choreography)।
 
+### Worked example: Saga for "place an order" (Order → Payment → Inventory)
+
+![Saga pattern in microservices: choreography vs orchestration](images/saga-pattern.jpg)
+
+**The problem.** Three services, three databases. The customer pays, then stock reservation fails. One `@Transactional` cannot cover all three, so the money is taken but nothing can be shipped. A Saga fixes this: each step is its own local transaction, and if a later step fails, **compensating actions** undo the earlier steps.
+
+| Step | Service | Local transaction | Compensation (if a later step fails) |
+|---|---|---|---|
+| 1 | Order | create order with status `pending` | set status to `cancelled` |
+| 2 | Payment | charge the customer | refund the payment |
+| 3 | Inventory | reserve stock | release the reserved stock |
+
+Failure scenario used below: step 1 and step 2 succeed, step 3 (stock) fails.
+
+**Style 1: Choreography (events, no coordinator)**
+
+```
+Order     --OrderCreated-->      Payment
+Payment   --PaymentCompleted-->  Inventory
+Inventory --StockReserved-->     Order      (order becomes confirmed)
+
+Inventory fails:
+Inventory --StockFailed-->       Payment    (refund)
+Payment   --PaymentRefunded-->   Order      (order becomes cancelled)
+```
+
+```java
+// Order Service: start the saga
+@Transactional
+public Order placeOrder(OrderRequest req) {
+    Order order = orderRepo.save(new Order(req, Order.Status.pending));
+    kafka.send("order-created", new OrderCreated(order.getId(), order.getTotal()));
+    return order;
+}
+
+// Payment Service: reacts to the order event, publishes its own
+@KafkaListener(topics = "order-created")
+public void onOrderCreated(OrderCreated e) {
+    paymentRepo.save(Payment.charged(e.orderId(), e.total()));
+    kafka.send("payment-completed", new PaymentCompleted(e.orderId()));
+}
+
+// Payment Service: compensation when stock fails
+@KafkaListener(topics = "stock-failed")
+public void onStockFailed(StockFailed e) {
+    paymentRepo.markRefunded(e.orderId());
+    kafka.send("payment-refunded", new PaymentRefunded(e.orderId()));
+}
+
+// Order Service: final compensation
+@KafkaListener(topics = "payment-refunded")
+public void onPaymentRefunded(PaymentRefunded e) {
+    orderRepo.updateStatus(e.orderId(), Order.Status.cancelled);
+}
+```
+
+Good for: few services, simple flow. Weak at: nobody owns the whole flow, so tracing "why is order 42 stuck?" means reading several services and topics.
+
+**Style 2: Orchestration (one coordinator decides)**
+
+```java
+@Service
+public class OrderSagaOrchestrator {
+
+    public void run(OrderRequest req) {
+        Order order = orderClient.create(req);                // step 1
+        try {
+            paymentClient.charge(order.getId(), order.getTotal());   // step 2
+            try {
+                inventoryClient.reserve(order.getId(), req.items()); // step 3
+                orderClient.confirm(order.getId());
+            } catch (Exception e) {                           // step 3 failed
+                paymentClient.refund(order.getId());          // undo step 2
+                orderClient.cancel(order.getId());            // undo step 1
+            }
+        } catch (Exception e) {                               // step 2 failed
+            orderClient.cancel(order.getId());                // undo step 1
+        }
+    }
+}
+```
+
+This nested try/catch is only to show the idea. Real systems store the saga state (`STARTED`, `PAYMENT_DONE`, `COMPENSATING`, `CANCELLED`) in a table so the orchestrator can resume after a crash, or use a framework such as Camunda, Temporal or Axon.
+
+Good for: many steps, branching rules ("if the amount is over X, add a fraud check"). Weak at: the orchestrator is one more service to build, run and keep available.
+
+**Choreography vs orchestration**
+
+| | Choreography | Orchestration |
+|---|---|---|
+| Who decides the next step | each service reacts to events | one central coordinator |
+| Coupling | looser, services only know events | coordinator knows every service |
+| Seeing the whole flow | hard, spread across services | easy, in one place |
+| Good fit | simple, event-driven flows | complex flows with conditions and failure rules |
+| Main risk | hard to trace as services grow | extra component, can become a bottleneck |
+
+**What a Saga does NOT give you**
+
+- It is **not an ACID transaction**. There is no isolation: between step 2 and step 3 other requests can see a paid order with no stock yet (a temporary inconsistent state). The goal is **eventual business consistency**, not instant atomic consistency.
+- Compensation is a **new business action**, not a database rollback. A refund is a new payment record, and some actions cannot be undone at all (for example an email already sent).
+- **Compensations must be idempotent.** Messages can be delivered twice, so "refund order 42" run twice must still refund only once (see Q16).
+- **Publishing the event and saving to the database must not drift apart.** If the order is saved but the event is never sent, the saga stalls. The usual fix is the **transactional outbox**: write the event to an `outbox` table in the same local transaction, and a separate process publishes it.
+
+**In this project.** `Order.Status` already has `pending` and `cancelled`, which is exactly what step 1 and its compensation need. Related notes: `spring-boot-expert-questions.md` Q7 (distributed transactions), `kafka-questions.md` (the event style), and `relational-db-basics.md` Q36 (2PC vs Saga).
+
 ## 20. What is contract testing, and why does it matter between A, B, and C?
 A way to verify that B's API still matches what A *expects* it to look like, without spinning up all three services together for every test. A defines a "contract" (example request/response pairs) against B's API; that contract is checked both from A's side (does A handle this shape correctly) and B's side (does B's real API actually still produce this shape) — commonly done with a tool like **Pact**. This catches "B changed a field name and broke A" *before* it reaches a shared staging environment, which matters more as the number of services (and teams owning them) grows — nobody wants to manually re-test every A→B→C combination after every deploy.
