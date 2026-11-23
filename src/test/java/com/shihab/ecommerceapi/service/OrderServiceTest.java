@@ -2,6 +2,7 @@ package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
 import com.shihab.ecommerceapi.model.*;
+import com.shihab.ecommerceapi.event.OrderPlacedEvent;
 import com.shihab.ecommerceapi.exception.BadRequestException;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.repository.AddressRepository;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +29,7 @@ class OrderServiceTest {
     @Mock private OrderItemRepository orderItemRepository;
     @Mock private CartService cartService;
     @Mock private AddressRepository addressRepository;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private OrderService orderService;
     private SimpleMeterRegistry meterRegistry;
@@ -35,7 +38,7 @@ class OrderServiceTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
         orderService = new OrderService(orderRepository, orderItemRepository, cartService,
-                addressRepository, meterRegistry);
+                addressRepository, eventPublisher, meterRegistry);
     }
 
     @Test
@@ -150,6 +153,35 @@ class OrderServiceTest {
 
         assertThat(result.getTotal()).isEqualTo(0.0);
         verify(orderItemRepository, never()).save(any());
+    }
+
+    @Test
+    void placeOrder_publishesOrderPlacedEvent() {
+        stubAddress();
+        Product p = new Product(1, "Laptop", "desc", 1000.0, 5, null);
+        when(cartService.findByUserId(7)).thenReturn(List.of(new Cart(1, new User(), p, 2, 1000.0)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(55);
+            return o;
+        });
+        when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        orderService.placeOrder(new PlaceOrderRequest(7, 3));
+
+        ArgumentCaptor<OrderPlacedEvent> captor = ArgumentCaptor.forClass(OrderPlacedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().orderId()).isEqualTo(55);
+        assertThat(captor.getValue().userId()).isEqualTo(7);
+        assertThat(captor.getValue().total()).isEqualTo(2000.0);
+    }
+
+    @Test
+    void placeOrder_invalidAddress_publishesNoEvent() {
+        when(addressRepository.findById(3)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> orderService.placeOrder(new PlaceOrderRequest(7, 3)))
+                .isInstanceOf(EntityNotFoundException.class);
+        verifyNoInteractions(eventPublisher);
     }
 
     private void stubAddress() {
