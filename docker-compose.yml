@@ -1,56 +1,75 @@
+# One command runs everything:
+#
+#   cp .env.example .env        (once; then set JWT_SECRET_KEY inside .env)
+#   docker compose up -d --build
+#
+# Services: postgres, rabbitmq, springboot-app, prometheus, grafana
+# Guide: docs/monitoring-setup.md
+
 services:
-  mysql:
-    image: mysql:8.3.0                # Using official MySQL 8.3.0 image
-    container_name: mysql-latest      # Naming the container for easier reference
+  # ---------- Database ----------
+  postgres:
+    image: postgres:16
     environment:
-      MYSQL_DATABASE: ecommerce       # Creates a database named 'ecommerce' automatically
-      MYSQL_ROOT_PASSWORD: root       # Sets the root password for MySQL
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "3308:3306"                   # Maps host port 3308 to container's default MySQL port 3306
+      - "5433:5432"                   # host 5433 -> container 5432 (5433 so it never clashes with a Postgres you already run on 5432)
+    volumes:
+      - postgres-data:/var/lib/postgresql/data   # keeps your data when containers are removed
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+  # ---------- Message queue ----------
   rabbitmq:
-    image: rabbitmq                   # Using official RabbitMQ image
-    container_name: rabbitmq          # Naming the container
+    image: rabbitmq:3-management
     ports:
-      - "5672:5672"                   # Maps default RabbitMQ communication port
-      - "15672:15672"                 # Maps RabbitMQ management UI port
+      - "5672:5672"                   # app connects here
+      - "15672:15672"                 # management UI: http://localhost:15672 (guest / guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
 
+  # ---------- Backend ----------
   springboot-app:
-    build: .                          # Builds image using the Dockerfile in the current directory
-    container_name: ecommerce-api-latest # Naming the container for Spring Boot app
+    build: .                          # builds the image from the Dockerfile in this folder
     ports:
-      - "8080:8080"                   # Maps Spring Boot default port to the host
+      - "8080:8080"
     depends_on:
-      - rabbitmq                      # Ensures RabbitMQ container starts before Spring Boot app
-      - mysql                         # Ensures MySQL container starts before Spring Boot app
+      postgres:
+        condition: service_healthy    # wait until the database accepts connections
+      rabbitmq:
+        condition: service_healthy
     environment:
-      # MySQL database connection settings
-      - SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3308/ecommerce?createDatabaseIfNotExist=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
-
-      # RabbitMQ connection settings
-      - SPRING_RABBITMQ_HOST=rabbitmq # Refers to the container name, allowing internal Docker network resolution
-      - SPRING_RABBITMQ_PORT=5672
-
-      # JWT signing key — supplied from the host shell or a local .env file (see .env.example),
-      # never hardcoded here. Generate one with: openssl rand -base64 32
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ecommerce
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      # Required login-token key. Put it in .env (see .env.example). Generate: openssl rand -base64 32
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env first (cp .env.example .env)}
+    restart: unless-stopped
 
   # ---------- Monitoring ----------
   prometheus:
     image: prom/prometheus:v2.53.0
-    container_name: prometheus
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Default: collects from the app container. Running the app in IntelliJ instead?
+      #   PROMETHEUS_CONFIG=prometheus-host.yml docker compose up -d postgres rabbitmq prometheus grafana
+      - ./monitoring/${PROMETHEUS_CONFIG:-prometheus.yml}:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090"                   # Prometheus UI: http://localhost:9090
     extra_hosts:
-      - "host.docker.internal:host-gateway"   # lets the container reach the app running on your machine
+      - "host.docker.internal:host-gateway"   # lets Prometheus reach an app running on your machine
 
   grafana:
     image: grafana/grafana:11.1.0
-    container_name: grafana
     ports:
       - "3000:3000"                   # Grafana UI: http://localhost:3000 (admin / admin)
     volumes:
@@ -58,3 +77,6 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+volumes:
+  postgres-data:
