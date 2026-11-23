@@ -188,12 +188,20 @@ App up, orders placed, request rate, 5xx error rate, requests per endpoint, p95 
 
 ## 🛠 Next Steps
 
-- **RabbitMQ** integration for async order/event messaging
+**Done**
+- ✅ **RabbitMQ** for async order/event messaging
+- ✅ **Docker Compose**: `docker compose up -d --build` runs the API, PostgreSQL, RabbitMQ, Prometheus and Grafana
+- ✅ **CI/CD** with GitHub Actions: runs the tests, then builds and pushes the Docker image on `main` ([workflow](.github/workflows/docker-ci-cd.yml))
+- ✅ **Unit tests** (JUnit + Mockito)
+- ✅ **Monitoring** with Prometheus + Grafana dashboard
+- ✅ **Kubernetes** manifests in [`k8s/`](k8s/)
+
+**Planned**
 - **Firebase FCM** for real‑time push notifications (order status updates)
-- Unit & integration tests (JUnit + Mockito)
-- ~~Docker Compose~~ ✓ (`docker compose up -d --build` runs everything)
-- Grafana alerts (high error rate, low stock)
-- CI/CD pipeline (GitHub Actions → AWS)
+- **Grafana alerts** (high error rate, low stock)
+- **Integration tests** (Spring Boot + Testcontainers)
+- **Deploy to AWS** from the CI/CD pipeline (it currently stops at pushing the Docker image)
+- Move the `k8s/` manifests from MySQL to PostgreSQL
 
 ---
 
