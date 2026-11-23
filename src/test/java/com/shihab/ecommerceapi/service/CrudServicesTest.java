@@ -67,7 +67,10 @@ class CrudServicesTest {
     @Nested
     class PaymentServiceTests {
         @Mock PaymentRepository repo;
-        @InjectMocks PaymentService service;
+        PaymentService service;
+
+        @org.junit.jupiter.api.BeforeEach
+        void setUp() { service = new PaymentService(repo, new io.micrometer.core.instrument.simple.SimpleMeterRegistry()); }
 
         @Test void findAll() { when(repo.findAll()).thenReturn(List.of(new Payment())); assertThat(service.findAll()).hasSize(1); }
         @Test void findById_present() { when(repo.findById(1)).thenReturn(Optional.of(new Payment())); assertThat(service.findById(1)).isPresent(); }
