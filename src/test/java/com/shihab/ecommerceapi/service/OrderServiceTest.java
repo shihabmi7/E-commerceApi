@@ -2,8 +2,13 @@ package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
 import com.shihab.ecommerceapi.model.*;
+import com.shihab.ecommerceapi.exception.BadRequestException;
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
+import com.shihab.ecommerceapi.repository.AddressRepository;
 import com.shihab.ecommerceapi.repository.OrderItemRepository;
 import com.shihab.ecommerceapi.repository.OrderRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -21,9 +26,17 @@ class OrderServiceTest {
     @Mock private OrderRepository orderRepository;
     @Mock private OrderItemRepository orderItemRepository;
     @Mock private CartService cartService;
+    @Mock private AddressRepository addressRepository;
 
-    @InjectMocks
     private OrderService orderService;
+    private SimpleMeterRegistry meterRegistry;
+
+    @BeforeEach
+    void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
+        orderService = new OrderService(orderRepository, orderItemRepository, cartService,
+                addressRepository, meterRegistry);
+    }
 
     @Test
     void findAll_returnsAll() {
@@ -67,6 +80,7 @@ class OrderServiceTest {
         Cart c1 = new Cart(1, new User(), p1, 2, p1.getPrice());
         Cart c2 = new Cart(2, new User(), p2, 1, p2.getPrice());
 
+        stubAddress();
         when(cartService.findByUserId(7)).thenReturn(List.of(c1, c2));
 
         Order savedOrder = new Order();
@@ -77,7 +91,7 @@ class OrderServiceTest {
         when(orderRepository.save(any(Order.class))).thenReturn(savedOrder);
         when(orderItemRepository.save(any(OrderItem.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        PlaceOrderRequest req = new PlaceOrderRequest(7);
+        PlaceOrderRequest req = new PlaceOrderRequest(7, 3);
         Order result = orderService.placeOrder(req);
 
         assertThat(result.getId()).isEqualTo(100);
@@ -97,6 +111,7 @@ class OrderServiceTest {
         Product p1 = new Product(1, "Laptop", "desc", 1500.0, 5, null);
         Cart c1 = new Cart(1, new User(), p1, 2, 1000.0);
 
+        stubAddress();
         when(cartService.findByUserId(7)).thenReturn(List.of(c1));
 
         Order savedOrder = new Order();
@@ -111,7 +126,7 @@ class OrderServiceTest {
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         ArgumentCaptor<OrderItem> itemCaptor = ArgumentCaptor.forClass(OrderItem.class);
 
-        orderService.placeOrder(new PlaceOrderRequest(7));
+        orderService.placeOrder(new PlaceOrderRequest(7, 3));
 
         verify(orderRepository).save(orderCaptor.capture());
         verify(orderItemRepository).save(itemCaptor.capture());
@@ -122,6 +137,7 @@ class OrderServiceTest {
 
     @Test
     void placeOrder_withEmptyCart_createsOrderWithZeroTotal() {
+        stubAddress();
         when(cartService.findByUserId(7)).thenReturn(List.of());
 
         Order savedOrder = new Order();
@@ -129,10 +145,54 @@ class OrderServiceTest {
         savedOrder.setTotal(0.0);
         when(orderRepository.save(any(Order.class))).thenReturn(savedOrder);
 
-        PlaceOrderRequest req = new PlaceOrderRequest(7);
+        PlaceOrderRequest req = new PlaceOrderRequest(7, 3);
         Order result = orderService.placeOrder(req);
 
         assertThat(result.getTotal()).isEqualTo(0.0);
         verify(orderItemRepository, never()).save(any());
+    }
+
+    private void stubAddress() {
+        User owner = new User();
+        owner.setId(7);
+        Address address = new Address();
+        address.setId(3);
+        address.setUser(owner);
+        when(addressRepository.findById(3)).thenReturn(Optional.of(address));
+    }
+
+    @Test
+    void placeOrder_setsAddressOnOrder() {
+        stubAddress();
+        when(cartService.findByUserId(7)).thenReturn(List.of());
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order result = orderService.placeOrder(new PlaceOrderRequest(7, 3));
+
+        assertThat(result.getAddress()).isNotNull();
+        assertThat(result.getAddress().getId()).isEqualTo(3);
+        assertThat(meterRegistry.get("orders_placed_total").counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void placeOrder_unknownAddress_throwsNotFound() {
+        when(addressRepository.findById(3)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> orderService.placeOrder(new PlaceOrderRequest(7, 3)))
+                .isInstanceOf(EntityNotFoundException.class);
+        verifyNoInteractions(orderRepository);
+    }
+
+    @Test
+    void placeOrder_addressOfAnotherUser_throwsBadRequest() {
+        User other = new User();
+        other.setId(99);
+        Address address = new Address();
+        address.setId(3);
+        address.setUser(other);
+        when(addressRepository.findById(3)).thenReturn(Optional.of(address));
+
+        assertThatThrownBy(() -> orderService.placeOrder(new PlaceOrderRequest(7, 3)))
+                .isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(orderRepository);
     }
 }

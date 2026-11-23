@@ -12,4 +12,7 @@ import lombok.Setter;
 public class PlaceOrderRequest {
     @NotNull
     private Integer userId;
+
+    @NotNull
+    private Integer addressId;
 }

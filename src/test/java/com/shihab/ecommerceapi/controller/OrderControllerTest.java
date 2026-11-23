@@ -64,7 +64,7 @@ class OrderControllerTest {
 
     @Test
     void placeOrder_returns200() throws Exception {
-        PlaceOrderRequest req = new PlaceOrderRequest(7);
+        PlaceOrderRequest req = new PlaceOrderRequest(7, 3);
         Order placed = new Order();
         placed.setId(1);
         when(orderService.placeOrder(any())).thenReturn(placed);
