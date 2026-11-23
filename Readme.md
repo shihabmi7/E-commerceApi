@@ -6,39 +6,47 @@ A **robust**, **scalable** Spring Boot backend for an online store, designed wi
 
 ## 🚀 Current Status
 
-✓ **Java 17 & Spring Boot 3.2.x** core setup
+✓ **Java 17 & Spring Boot 3.4.x** core setup
 
-✓ **JPA/Hibernate** integration with MySQL
+✓ **JPA/Hibernate** integration with PostgreSQL
 
 ✓ **Lombok** for boilerplate reduction
 
 ✓ **Security**
 - JWT‑based auth: `/auth/register`, `/auth/login`
-- Stateless sessions, custom `JwtFilter`, protected `/api/**`
+- Stateless sessions, custom `JwtFilter`, protected `/api/v1/**`
 
 ✓ **API Layers**
 - **Entities**, **DTOs**, **Mappers**
 - **Repositories**, **Services**, **Controllers**
 
 ✓ **Cart**
-- `POST /api/carts/add`: idempotent add/update quantity
-- `GET /api/cart?userId={id}`: returns `ProductInCartDto` (product details + quantity)
+- `POST /api/v1/cart/add`: idempotent add/update quantity
+- `GET /api/v1/cart?userId={id}`: returns `ProductInCartDto` (product details + quantity)
 
 ✓ **Orders**
-- `POST /api/orders/place`: single endpoint builds `Order` + `OrderItem`s from cart & clears cart
-- Supports linking user address
+- `POST /api/v1/orders/place`: single endpoint builds `Order` + `OrderItem`s from cart & clears cart
+- Requires a delivery address: body `{"userId":1,"addressId":1}`
+- Sends an order event to RabbitMQ after the order is saved (see [Order events](#-order-events-rabbitmq))
 
 ✓ **Address Management**
-- `POST /api/addresses`: create addresses for users
+- `POST /api/v1/addresses`: create addresses for users
 - Orders now reference `address_id` for delivery
 
 ✓ **Swagger/OpenAPI**
-- Live docs: `http://localhost:9090/swagger-ui/index.html`
+- Live docs: `http://localhost:8080/swagger-ui/index.html`
 
 ✓ **Monitoring (Prometheus + Grafana)**
 - Spring Boot Actuator + Micrometer metrics at `/actuator/prometheus`
 - Custom business metrics: orders, payments, low stock
 - Ready-made Grafana dashboard (see [Monitoring](#-monitoring))
+
+✓ **RabbitMQ order events**
+- Placing an order sends a message to RabbitMQ; a listener receives it (see [Order events](#-order-events-rabbitmq))
+
+✓ **Docker & CI/CD**
+- `docker compose up -d --build` runs the API, PostgreSQL, RabbitMQ, Prometheus and Grafana (see [Quick Start](#-quick-start-docker-one-command))
+- GitHub Actions runs the tests and pushes the Docker image on `main`
 
 ---
 
@@ -103,7 +111,7 @@ Stop with `docker compose stop`. Full guide: [docs/monitoring-setup.md](docs/mon
    mvn spring-boot:run
    ```
 5. **Explore**
-    - Swagger UI: `http://localhost:9090/swagger-ui/index.html`
+    - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
     - Test via Postman or cURL
 
 ---
@@ -119,8 +127,8 @@ Stop with `docker compose stop`. Full guide: [docs/monitoring-setup.md](docs/mon
 ### Cart
 | Endpoint                       | Method | Description                                |
 |--------------------------------|--------|--------------------------------------------|
-| `/api/carts/add`               | POST   | Add/update product in user’s cart          |
-| `/api/cart?userId={userId}`    | GET    | List products in cart with aggregated qty  |
+| `/api/v1/cart/add`             | POST   | Add/update product in user’s cart          |
+| `/api/v1/cart?userId={userId}` | GET    | List products in cart with aggregated qty  |
 
 ### Orders
 | Endpoint                       | Method | Description                                              |
@@ -130,9 +138,9 @@ Stop with `docker compose stop`. Full guide: [docs/monitoring-setup.md](docs/mon
 ### Addresses
 | Endpoint                 | Method | Description                 |
 |--------------------------|--------|-----------------------------|
-| `/api/addresses`         | POST   | Add a new address for user  |
+| `/api/v1/addresses`      | POST   | Add a new address for user  |
 
-_(And other CRUD endpoints under `/api/` for users, products, categories, etc.)_
+_(And other CRUD endpoints under `/api/v1/` for users, products, categories, etc.)_
 
 ---
 
@@ -168,7 +176,7 @@ Everything at once: `docker compose up -d --build` (see [Quick Start](#-quick-st
 
 | Metric | Type | Meaning |
 |--------|------|---------|
-| `orders_placed_total` | Counter | Orders placed through `POST /api/orders/place` |
+| `orders_placed_total` | Counter | Orders placed through `POST /api/v1/orders/place` |
 | `payments_total{status,method}` | Counter | Payments saved, by status (`pending`, `completed`, `failed`) and method |
 | `products_low_stock` | Gauge | Products with stock below `app.inventory.low-stock-threshold` (default 5) |
 | `order_messages_received_total` | Counter | Order messages received from RabbitMQ by the listener |
