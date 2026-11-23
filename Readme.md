@@ -35,6 +35,11 @@ A **robust**, **scalable** Spring Boot backend for an online store, designed wi
 ✓ **Swagger/OpenAPI**
 - Live docs: `http://localhost:9090/swagger-ui/index.html`
 
+✓ **Monitoring (Prometheus + Grafana)**
+- Spring Boot Actuator + Micrometer metrics at `/actuator/prometheus`
+- Custom business metrics: orders, payments, low stock
+- Ready-made Grafana dashboard (see [Monitoring](#-monitoring))
+
 ---
 
 ## ⚙️ Prerequisites
@@ -110,12 +115,57 @@ _(And other CRUD endpoints under `/api/` for users, products, categories, etc.)_
 
 ---
 
+## 📊 Monitoring
+
+The app exposes metrics with **Spring Boot Actuator + Micrometer**. **Prometheus** collects them and **Grafana** shows them on a dashboard.
+
+```
+Spring Boot app  →  Prometheus (:9090)  →  Grafana (:3000)
+```
+
+### Run it locally
+
+1. Start the app (IntelliJ or `./mvnw spring-boot:run`) with `JWT_SECRET_KEY` set.
+2. Check the metrics endpoint: `curl http://localhost:8080/actuator/prometheus`
+3. Start Prometheus and Grafana:
+   ```bash
+   docker compose up -d prometheus grafana
+   ```
+4. Open **Prometheus targets**: http://localhost:9090/targets (`ecommerce-api` should be **UP**).
+5. Open **Grafana**: http://localhost:3000 (login `admin` / `admin`) → Dashboards → **E-Commerce API**.
+6. Send some requests (Swagger UI, place an order, create a payment) and watch the graphs move.
+
+> If the app runs inside docker-compose, change the target in `monitoring/prometheus.yml` from `host.docker.internal:8080` to `springboot-app:8080`.
+
+### Custom business metrics
+
+| Metric | Type | Meaning |
+|--------|------|---------|
+| `orders_placed_total` | Counter | Orders placed through `POST /api/orders/place` |
+| `payments_total{status,method}` | Counter | Payments saved, by status (`pending`, `completed`, `failed`) and method |
+| `products_low_stock` | Gauge | Products with stock below `app.inventory.low-stock-threshold` (default 5) |
+
+### Dashboard panels
+
+App up, orders placed, request rate, 5xx error rate, requests per endpoint, p95 latency, JVM heap, CPU, DB connections, low-stock products, payments by status, orders per minute.
+
+### Files
+
+- `monitoring/prometheus.yml`: what Prometheus scrapes
+- `monitoring/grafana/provisioning/`: Grafana data source and dashboard loader
+- `monitoring/grafana/dashboards/ecommerce-api.json`: the dashboard
+
+> `/actuator/health` and `/actuator/prometheus` are public for local use. Protect them before a public deployment.
+
+---
+
 ## 🛠 Next Steps
 
 - **RabbitMQ** integration for async order/event messaging
 - **Firebase FCM** for real‑time push notifications (order status updates)
 - Unit & integration tests (JUnit + Mockito)
 - Docker Compose [in progress]
+- Grafana alerts (high error rate, low stock)
 - CI/CD pipeline (GitHub Actions → AWS)
 
 ---
