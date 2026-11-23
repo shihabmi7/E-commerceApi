@@ -16,51 +16,57 @@ A simple guide. Follow the steps in order. It takes about 5 minutes.
 Your app  -->  Prometheus  -->  Grafana (you look here)
 ```
 
-You do **not** install Prometheus or Grafana by hand. Docker runs them for you.
+You do **not** install anything by hand. Docker runs it all with **one command**:
+
+| Container | What it is |
+|-----------|------------|
+| `springboot-app` | Your API |
+| `postgres` | The database |
+| `rabbitmq` | The message queue |
+| `prometheus` | Collects the numbers |
+| `grafana` | Draws the graphs |
 
 ## Before you start
 
-You need:
-- **Docker Desktop**, installed and running
-- **Java 17+** (to run the app)
-- **PostgreSQL** running, with a database called `ecommerce`
+You need only:
+- **Docker Desktop**, installed and **running**
 - The project downloaded on your computer
 
-## Step 1: Start the app
+(You do **not** need Java, Maven or PostgreSQL installed. Docker brings them.)
 
-The app needs a secret key for login tokens. Make one and start the app:
+## Step 1: Create your settings file (one time)
 
-```bash
-export JWT_SECRET_KEY=$(openssl rand -base64 32)
-export SPRING_RABBITMQ_HOST=localhost
-./mvnw spring-boot:run
-```
-
-Using IntelliJ instead? Open **Run > Edit Configurations** and add these under
-**Environment variables**:
-
-```
-JWT_SECRET_KEY=<any long random text>;SPRING_RABBITMQ_HOST=localhost
-```
-
-Check it works. This should print lots of text (not an error):
+The app needs a secret key for login tokens. In the project folder:
 
 ```bash
-curl http://localhost:8080/actuator/prometheus
+cp .env.example .env
+openssl rand -base64 32
 ```
 
-## Step 2: Start Prometheus, Grafana and RabbitMQ
+The second command prints a random text. Open the new `.env` file and paste it
+after `JWT_SECRET_KEY=`, like this:
 
-Open a **new terminal** in the project folder and run:
+```
+JWT_SECRET_KEY=paste-the-random-text-here
+```
+
+`.env` is private and is never uploaded to GitHub.
+
+## Step 2: Start everything
 
 ```bash
-docker compose up -d prometheus grafana rabbitmq
+docker compose up -d --build
 ```
 
-The first time, Docker downloads the images. Wait until it finishes.
+- The **first time** it takes a few minutes (it builds your app and downloads images).
+- Later starts take seconds.
+- Check that all 5 are running:
 
-> RabbitMQ is the message queue the app uses. Without it you will see
-> connection errors in the app console.
+```bash
+docker compose ps
+```
+
+The API is now at http://localhost:8080.
 
 ## Step 3: Check Prometheus can see your app
 
@@ -149,20 +155,42 @@ Wait a few seconds and look at Grafana again. The numbers change.
 ## Stop everything
 
 ```bash
-docker compose stop prometheus grafana rabbitmq
+docker compose stop        # stop, keep your data
+docker compose down        # remove the containers, keep your data
+docker compose down -v     # remove everything INCLUDING the database data
 ```
 
-Then stop the app (Ctrl+C in its terminal, or the red square in IntelliJ).
+To start again later: `docker compose up -d`. Your Grafana setup and database are kept.
 
-To start again later, repeat Step 1 and Step 2. Your Grafana setup is kept.
+## Run the app from IntelliJ instead (optional)
+
+Want to run the app in IntelliJ but keep the rest in Docker?
+
+1. Start everything **except** the app, and tell Prometheus the app is on your computer:
+
+   ```bash
+   PROMETHEUS_CONFIG=prometheus-host.yml docker compose up -d postgres rabbitmq prometheus grafana
+   ```
+
+2. In IntelliJ open **Run > Edit Configurations** and add these under **Environment variables**
+   (use the same key as in your `.env`):
+
+   ```
+   JWT_SECRET_KEY=<your key>;SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/ecommerce;SPRING_DATASOURCE_USERNAME=postgres;SPRING_DATASOURCE_PASSWORD=postgres;SPRING_RABBITMQ_HOST=localhost
+   ```
+
+3. Run the app. Do not also start the `springboot-app` container (both use port 8080).
 
 ## Problems and fixes
 
 **Prometheus target is DOWN**
 - Is the app running? Check http://localhost:8080/actuator/health
-- Running the app **inside Docker** instead of on your computer? Open
-  `monitoring/prometheus.yml` and change `host.docker.internal:8080` to
-  `springboot-app:8080`.
+- If the app crashed, read why: `docker compose logs springboot-app`
+- Running the app in IntelliJ? Start Prometheus with
+  `PROMETHEUS_CONFIG=prometheus-host.yml` (see the section above).
+
+**`docker compose` says `JWT_SECRET_KEY` is missing**
+- Do Step 1: create `.env` and put a key in it.
 
 **Grafana graphs are empty**
 - Set the time range (top right) to **Last 15 minutes**.
@@ -173,21 +201,24 @@ To start again later, repeat Step 1 and Step 2. Your Grafana setup is kept.
 - This is normal. The counter lives in the app's memory, so it starts from 0
   every time the app restarts.
 
-**The app fails with `Could not resolve placeholder 'JWT_SECRET_KEY'`**
-- You forgot to set `JWT_SECRET_KEY`. See Step 1.
+**The app (in IntelliJ) fails with `Could not resolve placeholder 'JWT_SECRET_KEY'`**
+- Add `JWT_SECRET_KEY` to the IntelliJ environment variables (see the IntelliJ section).
 
-**The console shows `UnknownHostException: rabbitmq`**
-- Set `SPRING_RABBITMQ_HOST=localhost` and make sure RabbitMQ is running (Step 2).
+**The console shows `UnknownHostException: rabbitmq`** (IntelliJ only)
+- Add `SPRING_RABBITMQ_HOST=localhost` to the IntelliJ environment variables.
 
 **Port already in use (8080, 3000 or 9090)**
 - Something else is using that port. Stop the other program, or stop the second
-  copy of the app you started by mistake.
+  copy of the app you started by mistake. (The Docker database uses port **5433**,
+  so it will not clash with a PostgreSQL you already run on 5432.)
 
 ## Where are the files?
 
 | File | What it is |
 |------|------------|
-| `docker-compose.yml` | Starts Prometheus and Grafana |
-| `monitoring/prometheus.yml` | Tells Prometheus where to collect numbers from |
+| `docker-compose.yml` | Starts the app, database, RabbitMQ, Prometheus and Grafana |
+| `.env` | Your private settings (you create it from `.env.example`) |
+| `monitoring/prometheus.yml` | Tells Prometheus to collect from the app container |
+| `monitoring/prometheus-host.yml` | Same, but for an app running on your computer (IntelliJ) |
 | `monitoring/grafana/provisioning/` | Connects Grafana to Prometheus automatically |
 | `monitoring/grafana/dashboards/ecommerce-api.json` | The dashboard itself |

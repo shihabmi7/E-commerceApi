@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: ecommerce-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # Use this file when the app runs on your machine (IntelliJ / mvn spring-boot:run):
+      #   PROMETHEUS_CONFIG=prometheus-host.yml docker compose up -d postgres rabbitmq prometheus grafana
+      - targets: ['host.docker.internal:8080']

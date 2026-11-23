@@ -42,11 +42,33 @@ A **robust**, **scalable** Spring Boot backend for an online store, designed wi
 
 ---
 
-## ⚙️ Prerequisites
+## 🚀 Quick Start (Docker, one command)
 
-- Java 17+
-- Maven 3.6+
-- MySQL (running & accessible)
+Runs the API, PostgreSQL, RabbitMQ, Prometheus and Grafana together. You only need **Docker Desktop**.
+
+```bash
+cp .env.example .env              # then paste a key after JWT_SECRET_KEY= (openssl rand -base64 32)
+docker compose up -d --build      # first run takes a few minutes
+```
+
+| What | Where |
+|------|-------|
+| API | http://localhost:8080 |
+| Grafana (`admin` / `admin`) | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| RabbitMQ (`guest` / `guest`) | http://localhost:15672 |
+| PostgreSQL (from your machine) | `localhost:5433`, db `ecommerce`, user `postgres` |
+
+Stop with `docker compose stop`. Full guide: [docs/monitoring-setup.md](docs/monitoring-setup.md).
+
+---
+
+## ⚙️ Prerequisites (running without Docker)
+
+- Java 17+
+- Maven 3.6+
+- PostgreSQL (running & accessible, database `ecommerce`)
+- RabbitMQ (set `SPRING_RABBITMQ_HOST=localhost`)
 
 ---
 
@@ -72,10 +94,9 @@ A **robust**, **scalable** Spring Boot backend for an online store, designed wi
    ```bash
    export $(cat .env | xargs)
    ```
-3. **Initialize schema**
-   ```bash
-   mysql -u root -p ecommerce_db < src/main/resources/schema.sql
-   ```
+3. **Database**
+
+   Create an empty PostgreSQL database named `ecommerce`. Tables are created automatically on startup.
 4. **Build & run**
    ```bash
    mvn clean install
@@ -104,7 +125,7 @@ A **robust**, **scalable** Spring Boot backend for an online store, designed wi
 ### Orders
 | Endpoint                       | Method | Description                                              |
 |--------------------------------|--------|----------------------------------------------------------|
-| `/api/orders/place`            | POST   | Convert user’s cart into order + items, then clear cart  |
+| `/api/v1/orders/place`         | POST   | Convert user’s cart into order + items, then clear cart. Body: `{"userId":1,"addressId":1}` |
 
 ### Addresses
 | Endpoint                 | Method | Description                 |
@@ -129,17 +150,19 @@ Spring Boot app  →  Prometheus (:9090)  →  Grafana (:3000)
 
 ### Run it locally
 
-1. Start the app (IntelliJ or `./mvnw spring-boot:run`) with `JWT_SECRET_KEY` set.
-2. Check the metrics endpoint: `curl http://localhost:8080/actuator/prometheus`
-3. Start Prometheus and Grafana:
+Everything at once: `docker compose up -d --build` (see [Quick Start](#-quick-start-docker-one-command)). Or, to run only the app from IntelliJ / `./mvnw spring-boot:run`:
+
+1. Start the infrastructure and point Prometheus at your machine:
    ```bash
-   docker compose up -d prometheus grafana
+   PROMETHEUS_CONFIG=prometheus-host.yml docker compose up -d postgres rabbitmq prometheus grafana
    ```
+2. Start the app with `JWT_SECRET_KEY`, `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/ecommerce`, `SPRING_DATASOURCE_PASSWORD=postgres` and `SPRING_RABBITMQ_HOST=localhost` set.
+3. Check the metrics endpoint: `curl http://localhost:8080/actuator/prometheus`
 4. Open **Prometheus targets**: http://localhost:9090/targets (`ecommerce-api` should be **UP**).
 5. Open **Grafana**: http://localhost:3000 (login `admin` / `admin`) → Dashboards → **E-Commerce API**.
 6. Send some requests (Swagger UI, place an order, create a payment) and watch the graphs move.
 
-> If the app runs inside docker-compose, change the target in `monitoring/prometheus.yml` from `host.docker.internal:8080` to `springboot-app:8080`.
+> `monitoring/prometheus.yml` scrapes the `springboot-app` container (default). `monitoring/prometheus-host.yml` scrapes an app running on your machine.
 
 ### Custom business metrics
 
@@ -155,7 +178,7 @@ App up, orders placed, request rate, 5xx error rate, requests per endpoint, p95 
 
 ### Files
 
-- `monitoring/prometheus.yml`: what Prometheus scrapes
+- `monitoring/prometheus.yml` / `prometheus-host.yml`: what Prometheus scrapes (app in Docker / app on your machine)
 - `monitoring/grafana/provisioning/`: Grafana data source and dashboard loader
 - `monitoring/grafana/dashboards/ecommerce-api.json`: the dashboard
 
@@ -168,7 +191,7 @@ App up, orders placed, request rate, 5xx error rate, requests per endpoint, p95 
 - **RabbitMQ** integration for async order/event messaging
 - **Firebase FCM** for real‑time push notifications (order status updates)
 - Unit & integration tests (JUnit + Mockito)
-- Docker Compose [in progress]
+- ~~Docker Compose~~ ✓ (`docker compose up -d --build` runs everything)
 - Grafana alerts (high error rate, low stock)
 - CI/CD pipeline (GitHub Actions → AWS)
 
