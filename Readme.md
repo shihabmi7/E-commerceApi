@@ -171,6 +171,8 @@ Everything at once: `docker compose up -d --build` (see [Quick Start](#-quick-st
 | `orders_placed_total` | Counter | Orders placed through `POST /api/orders/place` |
 | `payments_total{status,method}` | Counter | Payments saved, by status (`pending`, `completed`, `failed`) and method |
 | `products_low_stock` | Gauge | Products with stock below `app.inventory.low-stock-threshold` (default 5) |
+| `order_messages_received_total` | Counter | Order messages received from RabbitMQ by the listener |
+| `order_messages_publish_failed_total` | Counter | Order messages that could not be sent to RabbitMQ (broker down) |
 
 ### Dashboard panels
 
@@ -186,10 +188,26 @@ App up, orders placed, request rate, 5xx error rate, requests per endpoint, p95 
 
 ---
 
+## 📨 Order events (RabbitMQ)
+
+When an order is placed, the API sends a message to RabbitMQ:
+
+```
+POST /api/v1/orders/place  →  order saved  →  OrderMessage  →  RabbitMQ queue  →  OrderMessageListener
+```
+
+- The message is sent **after** the order is saved to the database, so a failed order never sends one.
+- If RabbitMQ is down, the order still succeeds. The failure is logged and counted in `order_messages_publish_failed_total`.
+- The listener currently logs each message (`Order message received: orderId=...`) and counts it in `order_messages_received_total`. Add real work there (email, push notification, stock update).
+- You can also send a test message by hand with `POST /api/v1/publish`.
+- Watch the queue at http://localhost:15672 (login `guest` / `guest`).
+
+---
+
 ## 🛠 Next Steps
 
 **Done**
-- ✅ **RabbitMQ** for async order/event messaging
+- ✅ **RabbitMQ order events**: placing an order sends an `OrderMessage` to RabbitMQ after the order is saved; a listener receives it (see [Order events](#-order-events-rabbitmq))
 - ✅ **Docker Compose**: `docker compose up -d --build` runs the API, PostgreSQL, RabbitMQ, Prometheus and Grafana
 - ✅ **CI/CD** with GitHub Actions: runs the tests, then builds and pushes the Docker image on `main` ([workflow](.github/workflows/docker-ci-cd.yml))
 - ✅ **Unit tests** (JUnit + Mockito)
@@ -197,6 +215,7 @@ App up, orders placed, request rate, 5xx error rate, requests per endpoint, p95 
 - ✅ **Kubernetes** manifests in [`k8s/`](k8s/)
 
 **Planned**
+- **Real work in the order-message listener** (confirmation email, stock update). Today it only logs and counts the message
 - **Firebase FCM** for real‑time push notifications (order status updates)
 - **Grafana alerts** (high error rate, low stock)
 - **Integration tests** (Spring Boot + Testcontainers)
