@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: ecommerce-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # App running on your machine (IntelliJ / mvn spring-boot:run).
+      # If the app runs inside docker-compose, change this to 'springboot-app:8080'.
+      - targets: ['host.docker.internal:8080']

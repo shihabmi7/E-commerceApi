@@ -7,6 +7,8 @@ import com.shihab.ecommerceapi.model.OrderItem;
 import com.shihab.ecommerceapi.model.User;
 import com.shihab.ecommerceapi.repository.OrderItemRepository;
 import com.shihab.ecommerceapi.repository.OrderRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,13 +21,18 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final CartService cartService;
+    private final Counter ordersPlaced;
 
     public OrderService(OrderRepository orderRepository,
                          OrderItemRepository orderItemRepository,
-                         CartService cartService) {
+                         CartService cartService,
+                         MeterRegistry meterRegistry) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartService = cartService;
+        this.ordersPlaced = Counter.builder("orders_placed_total")
+                .description("Total number of orders placed")
+                .register(meterRegistry);
     }
 
     public List<Order> findAll() {
@@ -78,6 +85,9 @@ public class OrderService {
 
         // 5) clear the cart
         carts.forEach(c -> cartService.deleteById(c.getId()));
+
+        // 6) business metric: shows up in Grafana as orders_placed_total
+        ordersPlaced.increment();
         return savedOrder;
     }
 

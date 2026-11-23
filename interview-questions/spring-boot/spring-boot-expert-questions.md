@@ -98,6 +98,21 @@ public void sendWelcomeEmail(Employee e) { ... }
 A broker persists the work item outside the JVM — survives a crash, can be consumed by another instance/service, load-balances across consumers. Use `@Async` for cheap in-process work; use messaging when it must survive a crash or cross service boundaries.
 
 ## 9. How do you tune HikariCP for production?
+**What is HikariCP?** It is a fast database **connection pool**, and the default pool in Spring Boot. Opening a new DB connection for every request is slow (network, login, setup). So HikariCP opens a small number of connections once, keeps them open, and lends them out:
+1. App starts, and the pool opens some connections.
+2. A request borrows a connection, runs its query, then **returns it** to the pool (it is not closed).
+3. The next request reuses that connection.
+
+If all connections are busy, the next request waits. If it waits longer than `connection-timeout`, it fails with "Connection is not available, request timed out".
+
+**What the main settings do:**
+- `maximum-pool-size`: max connections (default 10). Too small means requests wait. Too big overloads the database.
+- `minimum-idle`: connections kept ready when idle.
+- `connection-timeout`: how long a request waits for a free connection.
+- `max-lifetime`: closes old connections so they don't break when the DB or firewall drops them. Keep it a bit shorter than their timeout.
+
+**Interview line:** "HikariCP is a fast JDBC connection pool. It reuses connections instead of opening new ones, and I tune pool size and timeouts to the load and to what the database can handle."
+
 ```properties
 spring.datasource.hikari.maximum-pool-size=10   # bounded by DB max_connections & CPU cores, not "as high as possible"
 spring.datasource.hikari.connection-timeout=3000  # fail fast, don't queue forever
@@ -147,10 +162,14 @@ spring.lifecycle.timeout-per-shutdown-phase=30s
 Stops accepting new requests, lets in-flight ones finish (up to the timeout). Must line up with K8s' `terminationGracePeriodSeconds` — set that a bit higher, or K8s force-kills before Spring finishes draining.
 
 ## 14. How do you reduce startup time / memory footprint (Kubernetes autoscaling)?
-Slow-starting pods delay absorbing traffic spikes.
-- **Lazy initialization** — beans created on first use, not all at startup.
-- **Exclude unused auto-configuration** explicitly.
+Slow-starting pods delay absorbing traffic spikes. When traffic jumps, Kubernetes (HPA) starts new pods. A normal Spring Boot app takes 20-60 seconds to start, and until then the old pods take all the load. Faster start means new pods help sooner. Less memory means more pods fit on each node, so it costs less.
+- **Lazy initialization** — beans created on first use, not all at startup (`spring.main.lazy-initialization=true`). Faster start, but the first request is slower and wrong bean setup shows up late.
+- **Exclude unused auto-configuration** explicitly (`@SpringBootApplication(exclude = ...)` or `spring.autoconfigure.exclude`), and remove unused dependencies.
 - **GraalVM native image** — ahead-of-time compiled binary; startup drops to milliseconds, smaller memory footprint, at the cost of longer builds and reflection/proxy limitations needing explicit hints.
+
+Also helps: set JVM memory to the container limit (`-XX:MaxRAMPercentage=75`), use a **readiness probe** (traffic only to ready pods) and a **startup probe** (slow start is not killed by liveness), and keep minimum replicas above zero.
+
+**Interview line:** "To scale fast on Kubernetes I cut startup time and memory with lazy init, excluding unused auto-configuration and, where it fits, a GraalVM native image, plus readiness and startup probes."
 
 ## 15. How do you rate-limit a Spring Boot API across multiple pods?
 A per-instance in-memory counter under-counts across pods (100 req/min *per pod*, not per user overall). Centralize the counter in Redis (sliding window/token bucket shared across instances), or push it up to an API Gateway (Spring Cloud Gateway, Kong) so no individual service reimplements it. Rate limiting is a cross-cutting concern — centralizing it avoids inconsistent per-service implementations.
