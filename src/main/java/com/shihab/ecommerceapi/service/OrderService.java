@@ -1,6 +1,7 @@
 package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
+import com.shihab.ecommerceapi.event.OrderPlacedEvent;
 import com.shihab.ecommerceapi.exception.BadRequestException;
 import com.shihab.ecommerceapi.exception.EntityNotFoundException;
 import com.shihab.ecommerceapi.model.Address;
@@ -13,6 +14,7 @@ import com.shihab.ecommerceapi.repository.OrderItemRepository;
 import com.shihab.ecommerceapi.repository.OrderRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,17 +28,20 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final CartService cartService;
     private final AddressRepository addressRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Counter ordersPlaced;
 
     public OrderService(OrderRepository orderRepository,
                          OrderItemRepository orderItemRepository,
                          CartService cartService,
                          AddressRepository addressRepository,
+                         ApplicationEventPublisher eventPublisher,
                          MeterRegistry meterRegistry) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartService = cartService;
         this.addressRepository = addressRepository;
+        this.eventPublisher = eventPublisher;
         this.ordersPlaced = Counter.builder("orders_placed_total")
                 .description("Total number of orders placed")
                 .register(meterRegistry);
@@ -103,6 +108,10 @@ public class OrderService {
 
         // 6) business metric: shows up in Grafana as orders_placed_total
         ordersPlaced.increment();
+
+        // 7) tell the rest of the system. The RabbitMQ message is sent only after this
+        // transaction commits (see OrderPlacedEventHandler), so a rollback sends nothing.
+        eventPublisher.publishEvent(new OrderPlacedEvent(savedOrder.getId(), req.getUserId(), total));
         return savedOrder;
     }
 
