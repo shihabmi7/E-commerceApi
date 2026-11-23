@@ -6,7 +6,7 @@ A **robust**, **scalable** Spring Boot backend for an online store, designed wi
 
 ## 🚀 Current Status
 
-✓ **Java 17 & Spring Boot 3.2.x** core setup
+✓ **Java 17 & Spring Boot 3.4.x** core setup
 
 ✓ **JPA/Hibernate** integration with PostgreSQL
 
