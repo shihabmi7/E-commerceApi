@@ -123,6 +123,10 @@ The app exposes metrics with **Spring Boot Actuator + Micrometer**. **Prometheus
 Spring Boot app  →  Prometheus (:9090)  →  Grafana (:3000)
 ```
 
+![Grafana dashboard](docs/images/grafana-dashboard.png)
+
+> 📘 **New to this?** Follow the simple step-by-step guide: [How to set up Prometheus and Grafana](docs/monitoring-setup.md)
+
 ### Run it locally
 
 1. Start the app (IntelliJ or `./mvnw spring-boot:run`) with `JWT_SECRET_KEY` set.
