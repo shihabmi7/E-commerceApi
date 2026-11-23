@@ -36,3 +36,25 @@ services:
       # JWT signing key — supplied from the host shell or a local .env file (see .env.example),
       # never hardcoded here. Generate one with: openssl rand -base64 32
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+
+  # ---------- Monitoring ----------
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"                   # Prometheus UI: http://localhost:9090
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach the app running on your machine
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: grafana
+    ports:
+      - "3000:3000"                   # Grafana UI: http://localhost:3000 (admin / admin)
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
