@@ -5,6 +5,6 @@ scrape_configs:
   - job_name: ecommerce-api
     metrics_path: /actuator/prometheus
     static_configs:
-      # App running on your machine (IntelliJ / mvn spring-boot:run).
-      # If the app runs inside docker-compose, change this to 'springboot-app:8080'.
-      - targets: ['host.docker.internal:8080']
+      # Default (docker compose up): the app runs as a container named 'springboot-app'.
+      # App running in IntelliJ / mvn spring-boot:run instead? Use prometheus-host.yml.
+      - targets: ['springboot-app:8080']
