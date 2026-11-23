@@ -1,10 +1,14 @@
 package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.dto.PlaceOrderRequest;
+import com.shihab.ecommerceapi.exception.BadRequestException;
+import com.shihab.ecommerceapi.exception.EntityNotFoundException;
+import com.shihab.ecommerceapi.model.Address;
 import com.shihab.ecommerceapi.model.Cart;
 import com.shihab.ecommerceapi.model.Order;
 import com.shihab.ecommerceapi.model.OrderItem;
 import com.shihab.ecommerceapi.model.User;
+import com.shihab.ecommerceapi.repository.AddressRepository;
 import com.shihab.ecommerceapi.repository.OrderItemRepository;
 import com.shihab.ecommerceapi.repository.OrderRepository;
 import io.micrometer.core.instrument.Counter;
@@ -21,15 +25,18 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final CartService cartService;
+    private final AddressRepository addressRepository;
     private final Counter ordersPlaced;
 
     public OrderService(OrderRepository orderRepository,
                          OrderItemRepository orderItemRepository,
                          CartService cartService,
+                         AddressRepository addressRepository,
                          MeterRegistry meterRegistry) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartService = cartService;
+        this.addressRepository = addressRepository;
         this.ordersPlaced = Counter.builder("orders_placed_total")
                 .description("Total number of orders placed")
                 .register(meterRegistry);
@@ -55,6 +62,13 @@ public class OrderService {
 
     @Transactional
     public Order placeOrder(PlaceOrderRequest req) {
+        // 0) the shipping address must exist and belong to the ordering user
+        Address address = addressRepository.findById(req.getAddressId())
+                .orElseThrow(() -> new EntityNotFoundException("Address not found: " + req.getAddressId()));
+        if (address.getUser() == null || !req.getUserId().equals(address.getUser().getId())) {
+            throw new BadRequestException("Address " + req.getAddressId() + " does not belong to user " + req.getUserId());
+        }
+
         // 1) fetch cart items
         List<Cart> carts = cartService.findByUserId(req.getUserId());
 
@@ -69,6 +83,7 @@ public class OrderService {
         User aUser = new User();
         aUser.setId(req.getUserId());
         order.setUser(aUser);
+        order.setAddress(address);
         order.setTotal(total);
         order.setStatus(Order.Status.pending);
         Order savedOrder = orderRepository.save(order);

@@ -2,9 +2,10 @@ package com.shihab.ecommerceapi.service;
 
 import com.shihab.ecommerceapi.model.Product;
 import com.shihab.ecommerceapi.repository.ProductRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,8 +21,12 @@ class ProductServiceTest {
     @Mock
     private ProductRepository productRepository;
 
-    @InjectMocks
     private ProductService productService;
+
+    @BeforeEach
+    void setUp() {
+        productService = new ProductService(productRepository, new SimpleMeterRegistry(), 5);
+    }
 
     @Test
     void findAll_returnsAllProducts() {
